@@ -1470,6 +1470,7 @@ _HTML_BASE = r"""<!DOCTYPE html>
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="surp.ivc.lol — cheapest LLM API on the internet">
+<meta name="base:app_id" content="6a79b620d198f685bc61e2ef"/>
 <script type="application/ld+json">__JSONLD__</script>
 <style>
   :root {
