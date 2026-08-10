@@ -119,3 +119,5 @@ MIT. See [OmniRoute attribution](data/OMNIROUTE_LICENSE.txt) for the free-tier c
 - PayAI facilitator: https://facilitator.payai.network/
 
 <!-- auto-deploy test marker -->
+
+<!-- PR merge simulation: auto-deploy verified -->
