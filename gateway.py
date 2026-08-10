@@ -48,6 +48,7 @@ import cache_affinity as ca
 import auction_page as ap
 import model_benchmarks as mb
 import performance_page as pp
+import user_accounts as ua
 
 # ──────────────────────────────────────────────────────────────────────────────
 # x402 imports
@@ -875,6 +876,34 @@ async def _serve_free_completion(
     }, status=503)
 
 
+def _log_user_usage(request: web.Request, combo: str, model: str,
+                    tokens_in: int, tokens_out: int, cost_cents: int,
+                    tx_hash: str = "") -> None:
+    """Log usage to a user's account if they authenticated via a user-account API key.
+
+    This is distinct from the legacy prepaid API keys in stats.py — user-account
+    keys are created via the /app dashboard and tracked per-user. Fault-isolated:
+    a DB error never breaks a paid request.
+    """
+    try:
+        auth = request.headers.get("Authorization", "")
+        if not auth.startswith("Bearer "):
+            return
+        raw_key = auth[7:].strip()
+        if not raw_key.startswith("surp_"):
+            return  # legacy key, handled by stats.py
+        key_rec = ua.validate_api_key(raw_key)
+        if not key_rec:
+            return
+        # Budget check + increment (best-effort; if budget exceeded post-hoc,
+        # we still log but the key may be over — the next request will block)
+        ua.check_budget(key_rec["key_id"], cost_cents)
+        ua.log_usage(key_rec["user_id"], key_rec["key_id"],
+                     f"surp/{combo}", tokens_in, tokens_out, cost_cents, tx_hash)
+    except Exception as e:
+        logging.getLogger("surp.gateway").debug(f"_log_user_usage skipped: {e}")
+
+
 async def chat_completions(request: web.Request) -> web.StreamResponse:
     """Gateway endpoint. Two payment paths:
 
@@ -989,22 +1018,40 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
     payment_method = "x402"
     payer = ""
     tx_hash = ""
-
     if auth_header.startswith("Bearer "):
         api_key_raw = auth_header[7:].strip()
-        key_rec = st.validate_api_key(api_key_raw)
-        if key_rec is None:
-            return web.json_response({"error": "invalid API key"}, status=401)
-        if not st.charge_api_key(key_rec["key_hash"], required_microcents):
-            return web.json_response({
-                "error": "insufficient balance",
-                "balance_microcents": key_rec["balance_usdc_microcents"],
-                "required_microcents": required_microcents,
-                "top_up": "POST /api/keys/topup",
-            }, status=402)
-        payment_method = "api_key"
-        payer = f"key:{key_rec['key_hash'][:8]}"
-        log.info(f"api-key charge: {required_microcents} mc for {combo} -> {resolved_model}")
+        # User-account API keys (surp_ prefix) — created via /app dashboard
+        if api_key_raw.startswith("surp_"):
+            ua_key = ua.validate_api_key(api_key_raw)
+            if ua_key is None:
+                return web.json_response({"error": "invalid API key"}, status=401)
+            # Budget check: does this key have room for this cost?
+            if not ua.check_budget(ua_key["key_id"], required_microcents):
+                return web.json_response({
+                    "error": "budget exceeded for this API key",
+                    "key_id": ua_key["key_id"],
+                    "budget_cents": ua_key["budget_cents"],
+                    "spent_cents": ua_key["spent_cents"],
+                    "required_cents": cents,
+                }, status=402)
+            payment_method = "user_api_key"
+            payer = f"user:{ua_key['user_id'][:8]}:key:{ua_key['key_id'][:8]}"
+            log.info(f"user-key charge: {required_microcents} mc for {combo} -> {resolved_model}")
+        else:
+            # Legacy prepaid API keys (stats.py)
+            key_rec = st.validate_api_key(api_key_raw)
+            if key_rec is None:
+                return web.json_response({"error": "invalid API key"}, status=401)
+            if not st.charge_api_key(key_rec["key_hash"], required_microcents):
+                return web.json_response({
+                    "error": "insufficient balance",
+                    "balance_microcents": key_rec["balance_usdc_microcents"],
+                    "required_microcents": required_microcents,
+                    "top_up": "POST /api/keys/topup",
+                }, status=402)
+            payment_method = "api_key"
+            payer = f"key:{key_rec['key_hash'][:8]}"
+            log.info(f"api-key charge: {required_microcents} mc for {combo} -> {resolved_model}")
 
     # ── Path B: NFT/token-gated eligibility ──
     # Holders of the configured ERC-20/721 bypass x402 entirely, with an
@@ -1119,6 +1166,7 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
         latency_ms = int((time.monotonic() - t0) * 1000)
         st.log_request(combo, cached["model"], payer, required_microcents, tx_hash,
                        "response_cache", tokens_in=0, tokens_out=0, latency_ms=latency_ms)
+        _log_user_usage(request, combo, cached["model"], 0, 0, cents, tx_hash)
         return web.json_response(body, headers=headers)
 
     if cacheable:
@@ -1189,6 +1237,7 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
         st.log_request(combo, resolved_model, payer, required_microcents, tx_hash,
                        payment_method, tokens_in=tokens_in, tokens_out=tokens_out,
                        latency_ms=latency_ms)
+        _log_user_usage(request, combo, resolved_model, tokens_in, tokens_out, cents, tx_hash)
         # Record cache-affinity sample: which model served which prefix with
         # what latency. This builds the ad-network-style prefix→provider index
         # that enables discounted bids for cached prefixes. Record even without
@@ -1233,6 +1282,7 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
 
     st.log_request(combo, resolved_model, payer, required_microcents, tx_hash,
                    payment_method, tokens_in=0, tokens_out=expected_tokens, latency_ms=latency_ms)
+    _log_user_usage(request, combo, resolved_model, 0, expected_tokens, cents, tx_hash)
     return out
 
 
@@ -3152,6 +3202,184 @@ async def app_static(request: web.Request) -> web.Response:
         return web.Response(body=f.read(), content_type=ct, headers={"Cache-Control": "public, max-age=86400"})
 
 
+# ─── User account API (Privy-authenticated) ──────────────────────────────────
+
+
+def _auth_user(request: web.Request) -> str | None:
+    """Extract + verify the Privy access token from the request. Returns user id."""
+    auth = request.headers.get("Authorization", "")
+    return ua.get_user_id_from_request(auth)
+
+
+async def api_user_me(request: web.Request) -> web.Response:
+    """GET /api/user/me — current user's wallet, balances, and basic info."""
+    user_id = _auth_user(request)
+    if not user_id:
+        return web.json_response({"error": "unauthorized"}, status=401)
+    user = ua.get_user(user_id)
+    if not user:
+        return web.json_response({"error": "user not found"}, status=404)
+    balances = ua.get_user_balance(user_id)
+    return web.json_response({
+        "user_id": user_id,
+        "wallet_address": user.get("wallet_address", ""),
+        "email": user.get("email", ""),
+        "balances": balances,
+    })
+
+
+async def api_user_balances(request: web.Request) -> web.Response:
+    """GET /api/user/balances — live ETH + USDC balance for the user's wallet."""
+    user_id = _auth_user(request)
+    if not user_id:
+        return web.json_response({"error": "unauthorized"}, status=401)
+    return web.json_response(ua.get_user_balance(user_id))
+
+
+async def api_user_dashboard(request: web.Request) -> web.Response:
+    """GET /api/user/dashboard — aggregate stats for the dashboard."""
+    user_id = _auth_user(request)
+    if not user_id:
+        return web.json_response({"error": "unauthorized"}, status=401)
+    stats = ua.get_dashboard_stats(user_id)
+    user = ua.get_user(user_id)
+    stats["wallet_address"] = user.get("wallet_address", "") if user else ""
+    stats["balances"] = ua.get_user_balance(user_id) if user else {}
+    return web.json_response(stats)
+
+
+async def api_user_usage(request: web.Request) -> web.Response:
+    """GET /api/user/usage — paginated usage records (lifetime saved page)."""
+    user_id = _auth_user(request)
+    if not user_id:
+        return web.json_response({"error": "unauthorized"}, status=401)
+    limit = min(int(request.query.get("limit", "100")), 500)
+    offset = int(request.query.get("offset", "0"))
+    records = ua.get_usage(user_id, limit, offset)
+    return web.json_response({"usage": records, "limit": limit, "offset": offset})
+
+
+async def api_user_activity(request: web.Request) -> web.Response:
+    """GET /api/user/activity — recent activity (last 50 calls, instant updates)."""
+    user_id = _auth_user(request)
+    if not user_id:
+        return web.json_response({"error": "unauthorized"}, status=401)
+    records = ua.get_usage(user_id, limit=50, offset=0)
+    return web.json_response({"activity": records})
+
+
+async def api_user_apikeys(request: web.Request) -> web.Response:
+    """GET /api/user/api-keys — list; POST — create (returns plaintext key ONCE)."""
+    user_id = _auth_user(request)
+    if not user_id:
+        return web.json_response({"error": "unauthorized"}, status=401)
+
+    if request.method == "POST":
+        try:
+            body = await request.json()
+        except Exception:
+            return web.json_response({"error": "invalid JSON"}, status=400)
+        name = str(body.get("name", ""))[:100]
+        budget = int(body.get("budget_cents", 0))
+        if budget < 0:
+            return web.json_response({"error": "budget must be >= 0"}, status=400)
+        result = ua.create_api_key(user_id, name, budget)
+        if not result:
+            return web.json_response({"error": "failed to create key"}, status=500)
+        return web.json_response({
+            "key": result["key"],
+            "key_id": result["key_id"],
+            "name": result["name"],
+            "budget_cents": result["budget_cents"],
+            "warning": "This key will only be shown once. Copy it now — you won't see it again.",
+        })
+
+    # GET — list keys (no plaintext)
+    keys = ua.list_api_keys(user_id)
+    return web.json_response({"api_keys": keys})
+
+
+async def api_user_apikey_delete(request: web.Request) -> web.Response:
+    """DELETE /api/user/api-keys/{key_id} — revoke an API key."""
+    user_id = _auth_user(request)
+    if not user_id:
+        return web.json_response({"error": "unauthorized"}, status=401)
+    key_id = request.match_info.get("key_id", "")
+    if ua.delete_api_key(user_id, key_id):
+        return web.json_response({"deleted": key_id})
+    return web.json_response({"error": "not found or not owned"}, status=404)
+
+
+async def api_user_withdraw(request: web.Request) -> web.Response:
+    """POST /api/user/withdraw — initiate a USDC withdrawal.
+
+    Body: { "to": "0x...", "amount": "1.50" }
+    The gateway signs and broadcasts a transferFrom (EIP-3009) from the user's
+    embedded wallet to the destination. Requires the user's wallet to have
+    approved the gateway or have sufficient balance + gas.
+    """
+    user_id = _auth_user(request)
+    if not user_id:
+        return web.json_response({"error": "unauthorized"}, status=401)
+    try:
+        body = await request.json()
+    except Exception:
+        return web.json_response({"error": "invalid JSON"}, status=400)
+    to_addr = str(body.get("to", "")).strip()
+    amount = body.get("amount", "0")
+    if not to_addr.startswith("0x") or len(to_addr) != 42:
+        return web.json_response({"error": "invalid destination address"}, status=400)
+    try:
+        amount_usdc = float(amount)
+    except (TypeError, ValueError):
+        return web.json_response({"error": "invalid amount"}, status=400)
+    if amount_usdc <= 0:
+        return web.json_response({"error": "amount must be > 0"}, status=400)
+
+    # Check the user has sufficient balance
+    user = ua.get_user(user_id)
+    if not user or not user.get("wallet_address"):
+        return web.json_response({"error": "no wallet found"}, status=400)
+    balances = ua.get_wallet_balances(user["wallet_address"])
+    if balances.get("usdc_atomic", 0) < int(amount_usdc * 1e6):
+        return web.json_response({"error": "insufficient USDC balance"}, status=400)
+
+    # The actual on-chain withdrawal requires a signed EIP-3009 authorization
+    # from the user's wallet. The frontend (Privy embedded wallet) signs it,
+    # then the gateway broadcasts. For now, return the unsigned payload for the
+    # frontend to sign + the gateway to relay.
+    return web.json_response({
+        "status": "pending_signature",
+        "message": "Sign the transaction in your wallet to withdraw",
+        "to": to_addr,
+        "amount_usdc": amount_usdc,
+        "amount_atomic": int(amount_usdc * 1e6),
+        "wallet_address": user["wallet_address"],
+    })
+
+
+async def api_user_add_funds(request: web.Request) -> web.Response:
+    """GET /api/user/add-funds — return deposit address + instructions."""
+    user_id = _auth_user(request)
+    if not user_id:
+        return web.json_response({"error": "unauthorized"}, status=401)
+    user = ua.get_user(user_id)
+    if not user or not user.get("wallet_address"):
+        return web.json_response({"error": "no wallet found"}, status=400)
+    return web.json_response({
+        "deposit_address": user["wallet_address"],
+        "network": "Base",
+        "token": "USDC",
+        "token_contract": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "instructions": [
+            "Copy your surp wallet address above.",
+            "From your external wallet (MetaMask, Coinbase Wallet, etc.), send USDC on the Base network to this address.",
+            "Funds typically arrive in under 10 seconds.",
+            "Your balance updates automatically — refresh this page after sending.",
+        ],
+    })
+
+
 
 async def api_benchmarks(request: web.Request) -> web.Response:
     """GET /api/benchmarks — verified output TPS/TTFT benchmark data."""
@@ -3301,6 +3529,17 @@ def build_app() -> web.Application:
     app.router.add_get("/performance", page_performance)
     app.router.add_get("/app", page_app)
     app.router.add_get("/app/assets/{path:.*}", app_static)
+    # User account API (Privy-authenticated)
+    app.router.add_get("/api/user/me", api_user_me)
+    app.router.add_get("/api/user/balances", api_user_balances)
+    app.router.add_get("/api/user/dashboard", api_user_dashboard)
+    app.router.add_get("/api/user/usage", api_user_usage)
+    app.router.add_get("/api/user/activity", api_user_activity)
+    app.router.add_get("/api/user/api-keys", api_user_apikeys)
+    app.router.add_post("/api/user/api-keys", api_user_apikeys)
+    app.router.add_delete("/api/user/api-keys/{key_id}", api_user_apikey_delete)
+    app.router.add_get("/api/user/add-funds", api_user_add_funds)
+    app.router.add_post("/api/user/withdraw", api_user_withdraw)
     app.router.add_get("/api/benchmarks", api_benchmarks)
     app.router.add_get("/api/health-board", api_health)
     app.router.add_get("/api/feedback", api_feedback_list)
