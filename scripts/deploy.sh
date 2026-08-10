@@ -46,13 +46,13 @@ log "pulled: ${NEW:0:7} (was ${PREV:0:7})"
 
 # Test gate — fail fast, don't touch running services
 . venv/bin/activate
-if ! pytest tests/ -q >>"$LOG" 2>&1; then
+if ! PYTHONPATH=. pytest tests/ -q >>"$LOG" 2>&1; then
     log "✗ TESTS FAILED — rolling back to ${PREV:0:7}"
     git reset --hard "$PREV" >>"$LOG" 2>&1
     # Don't restart — old code is still running
     exit 1
 fi
-log "✓ tests passed ($(pytest tests/ -q 2>&1 | tail -1))"
+log "✓ tests passed ($(PYTHONPATH=. pytest tests/ -q 2>&1 | tail -1))"
 
 # Restart services
 log "restarting surp-resolver + surp-gateway..."
