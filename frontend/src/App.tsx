@@ -14,7 +14,7 @@ import {
 export type Page = 'dashboard' | 'wallet' | 'apikeys' | 'activity' | 'usage'
 
 export default function App() {
-  const { ready, authenticated, user, logout, login } = usePrivy()
+  const { ready, authenticated, user, logout, login, getAccessToken } = usePrivy()
   const { wallets } = useWallets()
   const [page, setPage] = useState<Page>('dashboard')
   const [balances, setBalances] = useState<{eth: string, usdc: string, usdc_atomic: number} | null>(null)
@@ -25,7 +25,7 @@ export default function App() {
   // Fetch balances when wallet is available
   const refreshBalances = useCallback(async () => {
     try {
-      const token = await activeWallet?.getAccessToken?.()
+      const token = await getAccessToken()
       if (!token) return
       const res = await fetch('/api/user/balances', {
         headers: { Authorization: `Bearer ${token}` },
@@ -37,7 +37,7 @@ export default function App() {
     } catch (e) {
       console.error('balance fetch failed', e)
     }
-  }, [activeWallet])
+  }, [getAccessToken])
 
   useEffect(() => {
     if (authenticated && walletAddress) {

@@ -1,14 +1,14 @@
-import { usePrivy, useWallets } from '@privy-io/react-auth'
+import { usePrivy } from '@privy-io/react-auth'
 
 /** Hook to get an authenticated fetch function that injects the Privy token. */
 export function useAuthFetch() {
   const { getAccessToken } = usePrivy()
-  const { wallets } = useWallets()
-  const activeWallet = wallets[0]
 
   return async (url: string, options: RequestInit = {}) => {
-    const token = await activeWallet?.getAccessToken?.()
-    if (!token) throw new Error('not authenticated')
+    // Access tokens belong to the authenticated Privy session, not the wallet.
+    // Calling getAccessToken() also refreshes an expired/nearly-expired token.
+    const token = await getAccessToken()
+    if (!token) throw new Error('not authenticated — please log out and log in again')
     const headers = new Headers(options.headers)
     headers.set('Authorization', `Bearer ${token}`)
     if (options.body && !headers.has('Content-Type')) {
