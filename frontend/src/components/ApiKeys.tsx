@@ -26,6 +26,8 @@ export function ApiKeys() {
   const [newBudget, setNewBudget] = useState('')  // dollars
   const [createdKey, setCreatedKey] = useState<CreateResult | null>(null)
   const [copied, setCopied] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState('')
 
   const loadKeys = async () => {
     try {
@@ -44,6 +46,8 @@ export function ApiKeys() {
   useEffect(() => { loadKeys() }, [])
 
   const handleCreate = async () => {
+    setCreateError('')
+    setCreating(true)
     try {
       const budgetCents = Math.round((parseFloat(newBudget) || 0) * 100)
       const res = await authFetch('/api/user/api-keys', {
@@ -57,9 +61,14 @@ export function ApiKeys() {
         setNewBudget('')
         setShowCreate(false)
         loadKeys()
+      } else {
+        // Show the actual error from the API (e.g. "unauthorized", "budget must be >= 0")
+        setCreateError(data.error || `request failed (${res.status})`)
       }
-    } catch (e) {
-      console.error('create key failed', e)
+    } catch (e: any) {
+      setCreateError(e.message || 'network error — check your connection')
+    } finally {
+      setCreating(false)
     }
   }
 
@@ -136,9 +145,22 @@ export function ApiKeys() {
             The key will stop working once it reaches this budget. Set 0 for unlimited.
           </p>
           <div style={{ marginTop: 16 }}>
-            <button className="btn" onClick={handleCreate}>Create Key</button>
-            <button className="btn btn-outline" style={{ marginLeft: 8 }} onClick={() => setShowCreate(false)}>Cancel</button>
+            <button className="btn" onClick={handleCreate} disabled={creating}>
+              {creating ? 'Creating...' : 'Create Key'}
+            </button>
+            <button className="btn btn-outline" style={{ marginLeft: 8 }} onClick={() => setShowCreate(false)} disabled={creating}>
+              Cancel
+            </button>
           </div>
+          {createError && (
+            <p style={{
+              marginTop: 12, padding: 8, background: '#ff3b3b22',
+              border: '1px solid #ff3b3b', borderRadius: 4,
+              color: '#ff3b3b', fontSize: 13,
+            }}>
+              {createError}
+            </p>
+          )}
         </div>
       ) : (
         <button className="btn" onClick={() => setShowCreate(true)}>+ Create New Key</button>

@@ -399,6 +399,7 @@ def verify_privy_token(access_token: str) -> dict | None:
     """Verify a Privy access token via the Privy REST API.
 
     Returns the user object (with id, wallet, email) or None if invalid.
+    Uses a User-Agent header to avoid Cloudflare 1010 browser-signature blocks.
     """
     if not access_token:
         return None
@@ -411,7 +412,10 @@ def verify_privy_token(access_token: str) -> dict | None:
     import base64
     req = urllib.request.Request(
         "https://auth.privy.io/api/v1/users",
+        # User-Agent is required — without it, Cloudflare returns 1010
+        # (browser-signature block) and the request fails before reaching Privy.
         headers={
+            "User-Agent": "surp-gateway/1.0",
             "Authorization": "Basic "
             + base64.b64encode(f"{app_id}:{app_secret}".encode()).decode(),
             "privy-app-id": app_id,
