@@ -1,0 +1,121 @@
+# Juicebox Project Submission — surp.ivc.lol cache flywheel
+
+## Project name
+surp.ivc.lol
+
+## Tagline
+The cheapest LLM API on the internet — pay per request in USDC on Base, with cache flywheel rewards for agents who create shared value.
+
+## Description (rich text, follows Juicebox template)
+
+### About
+
+surp.ivc.lol is a live x402-paywalled LLM gateway that routes every API request to whichever AI model is cheapest on the Surplus Intelligence marketplace right now. You send an OpenAI-compatible request with `model: "surp/best-chat"`, pay 1¢ in USDC on Base via the x402 protocol, and get a real response from a real model — no account, no API key, no subscription.
+
+The gateway is already live and processing paid requests. It serves 150+ models from the Surplus marketplace across 15 built-in combos (best-coding, best-reasoning, best-chat, pro-vision, etc.) plus user-built custom combos. Every request is routed to the live cheapest eligible model, settled on-chain via EIP-3009 `transferWithAuthorization`, and returned as standard OpenAI-format JSON.
+
+What makes surp different is a two-layer cache engine that most gateways don't have:
+
+1. **Cache-aware sticky routing** — keeps a recently selected model when it stays within 30% of the live cheapest, preserving provider-side prefix cache locality (which cuts input cost by -75% to -90%)
+2. **Privacy-preserving exact response caching** — deterministic, non-streaming, tool-free requests are fingerprinted (SHA-256) and reused, costing $0.001 instead of $0.01 on repeat
+
+This is where the Juicebox treasury comes in.
+
+### Details (optional)
+
+A cache hit creates measurable economic value: the network avoids an upstream model call and keeps the difference. Right now surp captures all of that. But we built an off-chain reward ledger called **SRP** (surp reward points) that earmarks 50% of gateway markup and 50% of cache-hit revenue to a rebate pool that backs reward tokens minted to the agents who create and reuse cached computation.
+
+The loop:
+
+```
+agent uses surp → pays USDC → X% earmarked to rebate pool
+agent's cache hit → mints SRP to author + reader
+rebate pool grows → SRP redemption value rises
+agent's effective cost drops → agent uses surp more
+more cache hits → more SRP → marginal cost approaches zero
+```
+
+This Juicebox project is the on-chain home for that rebate pool. Instead of the maintainer holding an earmarked balance in a database, gateway revenue flows transparently into a Juicebox treasury with programmable splits, and SRP holders can claim USDC rebates via periodic Merkle root publications.
+
+The gateway code, the cache engine, the reward ledger, and the NFT-gating prototype are all built and live. The missing piece is the on-chain treasury — which is what this project creates.
+
+Key metrics from the live prototype:
+- 11 paid requests processed
+- 3 cache hits (reusing cached computation)
+- $0.0007 already in the rebate pool
+- 1 reward holder
+- 25 SRP minted and outstanding
+- 6 community votes cast on the proposal page
+- 4 pieces of community feedback submitted
+
+### Rewards
+
+Contributors to this Juicebox project fund the rebate pool that backs SRP. In return, they receive the Juicebox project token, which represents a claim on the treasury's redemption value.
+
+**For SRP holders (cache contributors):**
+We publish periodic Merkle roots of off-chain SRP balances. SRP holders can claim proportional USDC from the rebate pool. The more cache value an agent created, the larger their claim.
+
+**For Juicebox contributors (direct funders):**
+You receive the project token proportional to your contribution. The token redeems against the treasury balance. As gateway revenue flows in and the cache flywheel grows, the treasury accumulates USDC — and token holders can redeem or hold for appreciation.
+
+**The closed loop:**
+- Agent uses surp → creates/reuses cache → earns SRP
+- Gateway revenue → Juicebox treasury → backs both SRP claims and token redemption
+- Token holders and SRP holders both benefit as the network grows
+- NFT-gated holders (future) bypass per-request x402 entirely, with their wallet as identity, payment account, and reward account in one
+
+This is a RevNet pattern: the network's own revenue backs the token, and the token incentivizes the behavior (caching, reuse, loyalty) that makes the network cheaper.
+
+### The future
+
+**Phase 1 (now):** Off-chain SRP ledger running on live traffic. Community voting open at surp.ivc.lol/proposal. Token-gating prototype built and documented at surp.ivc.lol/token-gating. This Juicebox project deploys the on-chain treasury layer.
+
+**Phase 2 (30-90 days):** Gather real farming/Sybil data from the off-chain ledger. Tune reward weights (currently 1 SRP/token for writes, 2 for author-on-hit, 0.5 for reader-on-hit). Publish first Merkle root. Enable SRP → USDC claims against the Juicebox treasury.
+
+**Phase 3:** If the economics prove out, transition SRP from an off-chain accounting unit to an on-chain revenue-backed token with a RevNet-style redemption curve. NFT-gated access goes live — holders get discounted or free gateway access, with NFT sale revenue flowing into this same treasury.
+
+**Phase 4:** The network becomes self-reinforcing. Heavy users who create useful cache entries push their effective marginal cost toward zero. The token appreciates as revenue flows in. The flywheel turns: more usage → more cache → lower costs → more usage.
+
+The endgame is an LLM API where loyal, cache-contributing agents eventually get paid to use the network — because their usage creates shared value that backs the token they hold.
+
+### Risks & challenges
+
+**Sybil attacks:** A determined attacker could spin up many wallets to farm SRP. Mitigation: rewards mint on *hits* (reuse by independent agents), not writes; dedup per cache entry/role/payer for 1 hour; the off-chain-first phase lets us measure attack patterns before going on-chain. NFT-gating adds a capital cost to identity.
+
+**Reward weight uncertainty:** The 1/2/0.5 SRP rates are initial guesses. Real traffic data will reveal if authors or readers are over/under-rewarded. The off-chain phase exists specifically to tune these before permanently encoding them.
+
+**Legal classification:** Any on-chain token with revenue backing may be classified as a security in some jurisdictions. The hybrid path (off-chain accounting → Juicebox treasury → optional RevNet later) delays this risk until the model is proven. This Juicebox project is a treasury, not a security offering — contributors fund the rebate pool and receive a redemption-claim token.
+
+**Centralization during transition:** Until on-chain settlement is fully wired, the maintainer holds the earmarked pool. Juicebox removes this trust assumption by making the treasury public and programmable.
+
+**Cache poisoning:** A malicious agent could try to fill the cache with wrong answers to farm rewards. Mitigation: only deterministic (temperature 0), non-streaming, tool-free requests are cached; readers still pay; answers are verifiable; dedup window limits farming.
+
+**Market dependency:** surp depends on the Surplus Intelligence marketplace for model availability and pricing. If the marketplace degrades, the gateway's value proposition weakens. The combo system and custom combos provide some resilience.
+
+**Adoption risk:** The flywheel only works at scale. If usage stays low, cache hits stay rare, SRP stays near-worthless, and the loop never starts. The Juicebox treasury and community governance are designed to bootstrap the initial flywheel.
+
+### Call to action
+
+The cache flywheel is built and running. The reward ledger is accounting real value. The community is voting and submitting feedback. What's missing is the on-chain treasury that makes SRP claims verifiable and trustless.
+
+**If you're an AI agent developer:** Try the API. Send a request to `https://surp.ivc.lol/v1/chat/completions` with `model: "surp/best-chat"`. Pay 1¢ in USDC on Base. See the response. Then read the proposal at surp.ivc.lol/proposal and vote on the direction.
+
+**If you're a builder or investor:** This Juicebox project funds the rebate pool that backs the entire reward economy. Your contribution doesn't just fund development — it directly backs the token that incentivizes the network's growth. The more capital in the treasury, the higher the SRP redemption value, the stronger the incentive for agents to create shared cache value, the cheaper the network becomes for everyone.
+
+**If you're curious about RevNets:** This is a live, small-scale experiment in the RevNet pattern — revenue-backed tokens that incentivize the behavior that generates the revenue. Watch it unfold at surp.ivc.lol/status. The metrics are public. The code is open. The community is engaged.
+
+Fund the flywheel. Make LLM inference cheaper for everyone who uses it. Help build the first LLM API where loyal users gain a claim on the network's future revenue.
+
+→ Live gateway: https://surp.ivc.lol
+→ Proposal + vote: https://surp.ivc.lol/proposal
+→ Token-gating design: https://surp.ivc.lol/token-gating
+→ How caching works: https://surp.ivc.lol/cache
+→ Live metrics: https://surp.ivc.lol/status
+
+## Project links
+- Website: https://surp.ivc.lol
+- X/Twitter: https://x.com/ivcained
+- Farcaster: https://farcaster.xyz/ivc
+
+## Project tags
+AI, LLM, API, x402, Base, caching, RevNet, DeFi, infrastructure
