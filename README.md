@@ -121,3 +121,5 @@ MIT. See [OmniRoute attribution](data/OMNIROUTE_LICENSE.txt) for the free-tier c
 <!-- auto-deploy test marker -->
 
 <!-- PR merge simulation: auto-deploy verified -->
+
+<!-- PR merge test 2: full deploy pipeline -->
