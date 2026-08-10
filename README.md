@@ -117,3 +117,5 @@ MIT. See [OmniRoute attribution](data/OMNIROUTE_LICENSE.txt) for the free-tier c
 - Surplus Intelligence: https://www.surplusintelligence.ai/
 - x402 protocol: https://x402.org/
 - PayAI facilitator: https://facilitator.payai.network/
+
+<!-- auto-deploy test marker -->
