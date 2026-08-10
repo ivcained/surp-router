@@ -1,0 +1,48 @@
+# Secrets — never commit
+.secrets
+.env
+*.env
+!*.env.example
+!/.env.example
+
+# Databases (runtime state, not source)
+*.db
+*.db-shm
+*.db-wal
+*.db.bak
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.eggs/
+*.egg-info/
+dist/
+build/
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary benchmark key (created by benchmark runner)
+/tmp/bench_key
