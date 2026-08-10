@@ -1646,6 +1646,7 @@ _HTML_BASE = r"""<!DOCTYPE html>
     <li><a href="/features">updates</a></li>
     <li><a href="/auction" style="color:#5ce1ff;">auction</a></li>
     <li><a href="/performance" style="color:#5ce1ff;">TPS</a></li>
+    <li><a href="/app" style="color:#00ff9c;font-weight:bold;">login</a></li>
     <li><a href="/top">models</a></li>
     <li><a href="/find">find</a></li>
     <li><a href="/dashboard">usage</a></li>
@@ -1680,7 +1681,7 @@ __CONTENT__
     x402 LLM gateway · OpenAI-compatible API · pay per request in USDC on Base · cheapest AI models from the Surplus Intelligence marketplace · no account needed · no API key required
   </p>
   <p class="dim" style="margin-top:6px;font-size:10px;">
-    <a href="/x402">what is x402</a> · <a href="/x402-llm-api">x402 LLM API</a> · <a href="/x402-gateway">x402 gateway</a> · <a href="/pay-per-request-llm-api">pay-per-request LLM API</a> · <a href="/cheapest-llm-api">cheapest LLM API</a> · <a href="/free-models">free AI models</a> · <a href="/health">health board</a> · <a href="/performance">verified TPS</a> · <a href="/features">features &amp; updates</a> · <a href="/auction">cache auction</a> · <a href="/cache">cache-aware routing</a> · <a href="/proposal">reward proposal</a> · <a href="/token-gating">token-gating</a>
+    <a href="/x402">what is x402</a> · <a href="/x402-llm-api">x402 LLM API</a> · <a href="/x402-gateway">x402 gateway</a> · <a href="/pay-per-request-llm-api">pay-per-request LLM API</a> · <a href="/cheapest-llm-api">cheapest LLM API</a> · <a href="/free-models">free AI models</a> · <a href="/health">health board</a> · <a href="/performance">verified TPS</a> · <a href="/app">login &amp; wallet</a> · <a href="/features">features &amp; updates</a> · <a href="/auction">cache auction</a> · <a href="/cache">cache-aware routing</a> · <a href="/proposal">reward proposal</a> · <a href="/token-gating">token-gating</a>
   </p>
 </footer>
 </div>
@@ -3119,6 +3120,39 @@ async def page_performance(request: web.Request) -> web.Response:
     return web.Response(text=html, content_type="text/html")
 
 
+async def page_app(request: web.Request) -> web.Response:
+    """React SPA for user login + embedded wallet creation (Privy)."""
+    index_path = os.path.join(os.path.dirname(__file__), "frontend", "dist", "index.html")
+    try:
+        with open(index_path, "r", encoding="utf-8") as f:
+            html = f.read()
+        return web.Response(text=html, content_type="text/html")
+    except FileNotFoundError:
+        return web.Response(text="app not built — run npm run build in frontend/", status=503)
+
+
+async def app_static(request: web.Request) -> web.Response:
+    """Serve built frontend assets (JS/CSS) from frontend/dist/assets/."""
+    asset_path = request.match_info.get("path", "")
+    # Security: normalize + reject path traversal
+    safe = os.path.normpath(asset_path).lstrip("/")
+    if ".." in safe or safe.startswith("/"):
+        return web.Response(status=404)
+    full = os.path.join(os.path.dirname(__file__), "frontend", "dist", "assets", safe)
+    if not os.path.isfile(full):
+        return web.Response(status=404)
+    ct = "application/javascript"
+    if safe.endswith(".css"):
+        ct = "text/css"
+    elif safe.endswith(".svg"):
+        ct = "image/svg+xml"
+    elif safe.endswith(".png"):
+        ct = "image/png"
+    with open(full, "rb") as f:
+        return web.Response(body=f.read(), content_type=ct, headers={"Cache-Control": "public, max-age=86400"})
+
+
+
 async def api_benchmarks(request: web.Request) -> web.Response:
     """GET /api/benchmarks — verified output TPS/TTFT benchmark data."""
     model = request.query.get("model", "").strip()
@@ -3203,7 +3237,7 @@ async def serve_robots(request: web.Request) -> web.Response:
 async def serve_sitemap(request: web.Request) -> web.Response:
     import time as _time
     lastmod = _time.strftime("%Y-%m-%d", _time.gmtime())
-    pages = ["/", "/docs", "/connect", "/builder", "/about", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/models", "/free-models", "/health", "/performance", "/features", "/auction", "/cache", "/proposal", "/token-gating", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api"]
+    pages = ["/", "/docs", "/connect", "/builder", "/about", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/models", "/free-models", "/health", "/performance", "/features", "/auction", "/app", "/cache", "/proposal", "/token-gating", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api"]
     urls = ""
     for p in pages:
         priority = "1.0" if p == "/" else "0.8" if p in ("/docs", "/connect") else "0.6"
@@ -3265,6 +3299,8 @@ def build_app() -> web.Application:
     app.router.add_get("/features", page_features)
     app.router.add_get("/auction", page_auction)
     app.router.add_get("/performance", page_performance)
+    app.router.add_get("/app", page_app)
+    app.router.add_get("/app/assets/{path:.*}", app_static)
     app.router.add_get("/api/benchmarks", api_benchmarks)
     app.router.add_get("/api/health-board", api_health)
     app.router.add_get("/api/feedback", api_feedback_list)

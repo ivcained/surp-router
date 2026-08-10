@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>surp — login & wallet</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #000; color: #e0e0e0;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 14px; line-height: 1.5; min-height: 100vh;
+    }
+    a { color: #5ce1ff; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .container { max-width: 640px; margin: 0 auto; padding: 40px 20px; }
+    h1 { font-size: 28px; margin-bottom: 8px; }
+    .sub { color: #888; margin-bottom: 32px; font-size: 13px; }
+    .card {
+      background: #0a0a0a; border: 1px solid #1a1a1a; border-radius: 8px;
+      padding: 24px; margin-bottom: 16px;
+    }
+    .card h2 { font-size: 16px; margin-bottom: 12px; color: #5ce1ff; }
+    .btn {
+      background: #00ff9c; color: #000; border: none; border-radius: 4px;
+      padding: 10px 20px; font-family: inherit; font-size: 14px;
+      cursor: pointer; font-weight: bold; margin: 4px 0;
+    }
+    .btn:hover { opacity: 0.9; }
+    .btn-outline {
+      background: transparent; color: #5ce1ff; border: 1px solid #5ce1ff;
+    }
+    .wallet-addr {
+      font-family: monospace; font-size: 12px; color: #00ff9c;
+      word-break: break-all; background: #0a0a0a; padding: 8px;
+      border-radius: 4px; border: 1px solid #1a1a1a; margin: 8px 0;
+    }
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .badge {
+      display: inline-block; padding: 2px 8px; border-radius: 10px;
+      font-size: 11px; font-weight: bold;
+    }
+    .badge-green { background: #00ff9c22; color: #00ff9c; }
+    .badge-dim { background: #88888822; color: #888; }
+    .dim { color: #888; font-size: 12px; }
+    .privy-embed { --privy-root-background: #0a0a0a !important; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+</html>
