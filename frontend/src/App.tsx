@@ -17,7 +17,6 @@ export default function App() {
   const { ready, authenticated, user, logout, login } = usePrivy()
   const { wallets } = useWallets()
   const [page, setPage] = useState<Page>('dashboard')
-  const [showWalletWidget, setShowWalletWidget] = useState(false)
   const [balances, setBalances] = useState<{eth: string, usdc: string, usdc_atomic: number} | null>(null)
 
   const activeWallet = wallets[0]
@@ -64,32 +63,35 @@ export default function App() {
 
   const usdcBalance = balances ? (balances.usdc_atomic / 1e6).toFixed(6) : '0.00'
 
-  return (
-    <div>
-      <Nav
-        page={page}
-        setPage={setPage}
-        walletAddress={walletAddress}
-        usdcBalance={usdcBalance}
-        onWalletClick={() => setPage('wallet')}
-        onLogout={logout}
-      />
+  // Render the page content based on current selection
+  const pageContent = (
+    <>
+      {page === 'dashboard' && (
+        <Dashboard walletAddress={walletAddress} balances={balances} onNavigate={setPage} />
+      )}
+      {page === 'wallet' && (
+        <WalletPage
+          walletAddress={walletAddress}
+          balances={balances}
+          onRefresh={refreshBalances}
+        />
+      )}
+      {page === 'apikeys' && <ApiKeys />}
+      {page === 'activity' && <Activity />}
+      {page === 'usage' && <Usage />}
+    </>
+  )
 
-      <div className="container" style={{ paddingTop: 80 }}>
-        {page === 'dashboard' && (
-          <Dashboard walletAddress={walletAddress} balances={balances} onNavigate={setPage} />
-        )}
-        {page === 'wallet' && (
-          <WalletPage
-            walletAddress={walletAddress}
-            balances={balances}
-            onRefresh={refreshBalances}
-          />
-        )}
-        {page === 'apikeys' && <ApiKeys />}
-        {page === 'activity' && <Activity />}
-        {page === 'usage' && <Usage />}
-      </div>
-    </div>
+  return (
+    <Nav
+      page={page}
+      setPage={setPage}
+      walletAddress={walletAddress}
+      usdcBalance={usdcBalance}
+      onWalletClick={() => setPage('wallet')}
+      onLogout={logout}
+    >
+      {pageContent}
+    </Nav>
   )
 }
