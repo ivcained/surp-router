@@ -3618,6 +3618,24 @@ async def api_studio_status(request: web.Request) -> web.Response:
     return web.json_response(st.provider_status())
 
 
+async def api_studio_quote(request: web.Request) -> web.Response:
+    """GET /api/studio/quote?model=venice-flux-1.1-pro — public fee quote.
+
+    Free view call mirroring SettlementV2.calculateFee(): shows the seller
+    (Surplus) amount, surp's router markup bps, flat fee, and the total the
+    buyer pays — all verifiable before any payment.
+    """
+    model = request.query.get("model", "venice-flux-1.1-pro").strip()
+    try:
+        markets = await GCACHE.get()
+    except Exception:
+        markets = []
+    q = st.quote_breakdown(model, markets)
+    if q is None:
+        return web.json_response({"error": f"no market price for {model}"}, status=404)
+    return web.json_response(q)
+
+
 async def api_studio_generate(request: web.Request) -> web.Response:
     """POST /api/studio/generate — x402-paywalled text-to-image / video.
 
@@ -3725,24 +3743,31 @@ async def api_studio_generate(request: web.Request) -> web.Response:
     # ── Phase 2: verify + settle, then generate ──
     loop = asyncio.get_running_loop()
 
-    def _verify_and_settle():
-        try:
-            import base64 as _b64
-            raw_payload = _b64.b64decode(payment_header)
-            from x402.schemas.payments import PaymentPayload
-            payload_dict = json.loads(raw_payload)
-            payload_obj = PaymentPayload.model_validate(payload_dict)
-            requirements = payload_obj.accepted
-            vr = _facilitator.verify(payload_obj, requirements)
-            if not vr.is_valid:
-                return {"ok": False, "error": f"verification failed: {vr.invalid_reason}: {vr.invalid_message}"}
-            sr = _facilitator.settle(payload_obj, requirements)
-            if not sr.success:
-                return {"ok": False, "error": f"settlement failed: {sr.error_reason}: {sr.error_message}"}
-            return {"ok": True, "tx": sr.transaction, "network": sr.network, "payer": sr.payer}
-        except Exception as e:
-            log.error(f"studio facilitator error: {e}\n{traceback.format_exc()}")
-            return {"ok": False, "error": f"facilitator error: {str(e)}"}
+    def _verify_and_settle() -> dict:
+        # Mirrors Surplus's failed-settlement retry policy: retry with
+        # exponential backoff (up to 5 attempts) before giving up.
+        import base64 as _b64
+        raw_payload = _b64.b64decode(payment_header)
+        from x402.schemas.payments import PaymentPayload
+        payload_dict = json.loads(raw_payload)
+        payload_obj = PaymentPayload.model_validate(payload_dict)
+        requirements = payload_obj.accepted
+        last_err = "unknown"
+        for attempt in range(5):
+            try:
+                vr = _facilitator.verify(payload_obj, requirements)
+                if not vr.is_valid:
+                    return {"ok": False, "error": f"verification failed: {vr.invalid_reason}: {vr.invalid_message}"}
+                sr = _facilitator.settle(payload_obj, requirements)
+                if sr.success:
+                    return {"ok": True, "tx": sr.transaction, "network": sr.network, "payer": sr.payer}
+                last_err = f"{sr.error_reason}: {sr.error_message}"
+            except Exception as e:
+                last_err = str(e)
+            if attempt < 4:
+                time.sleep(0.5 * (2 ** attempt))  # 0.5s, 1s, 2s, 4s
+        log.error(f"studio settlement failed after 5 attempts: {last_err}")
+        return {"ok": False, "error": f"settlement failed after retries: {last_err}"}
 
     result = await loop.run_in_executor(None, _verify_and_settle)
     if not result.get("ok"):
@@ -4276,6 +4301,7 @@ def build_app() -> web.Application:
     app.router.add_post("/api/svi/benchmark", api_svi_submit)
     # Studio — all-in-one AI creative workspace
     app.router.add_get("/api/studio/status", api_studio_status)
+    app.router.add_get("/api/studio/quote", api_studio_quote)
     app.router.add_post("/api/studio/generate", api_studio_generate)
     app.router.add_post("/api/studio/upload", api_studio_upload)
     app.router.add_get("/api/studio/creations", api_studio_creations)

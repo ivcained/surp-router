@@ -44,8 +44,12 @@ FAL_KEY = os.environ.get("SURP_FAL_KEY", "")  # optional fallback provider
 FAL_API = "https://fal.run"
 
 # Router markup on top of Surplus's per-media-unit price (same bps as chat).
+# Mirrors Surplus SettlementV2's fee model: buyerAmount = sellerAmount ×
+# feeMultiplier/10000 + flatFee. Ours: marked = price × (1 + markup/10000)
+# + flat fee (to cover the ~$0.001 settlement gas on sub-cent generations).
 STUDIO_MARKUP_BPS = int(os.environ.get("SURP_STUDIO_MARKUP_BPS", os.environ.get("SURP_MARKUP_BPS", "500")))
 STUDIO_FLOOR_CENTS = float(os.environ.get("SURP_STUDIO_FLOOR_CENTS", "1"))
+STUDIO_FLAT_FEE_CENTS = float(os.environ.get("SURP_STUDIO_FLAT_FEE_CENTS", "0"))
 
 _lock = threading.RLock()
 _conn: Optional[sqlite3.Connection] = None
@@ -123,6 +127,16 @@ def quote_price_usd(model: str, markets: Optional[list[dict]] = None) -> Optiona
     STUDIO_FLOOR_CENTS, and returns dollars. Returns None if the model is
     not found or has no media price (caller decides whether to fall back).
     """
+    q = quote_breakdown(model, markets)
+    return q["price_usd"] if q else None
+
+
+def quote_breakdown(model: str, markets: Optional[list[dict]] = None) -> Optional[dict]:
+    """Full fee breakdown for a model — mirrors SettlementV2.calculateFee().
+
+    Returns {seller_amount_usd, markup_bps, markup_usd, flat_fee_usd,
+    price_usd, fee_usd} or None if the model has no live price.
+    """
     if not markets:
         return None
     for m in markets:
@@ -133,10 +147,22 @@ def quote_price_usd(model: str, markets: Optional[list[dict]] = None) -> Optiona
         atomic = m.get("best_media_unit_price") or m.get("best_price_per_1m")
         if not atomic:
             return None
-        price_usd = float(atomic) / 1e6
-        marked = price_usd * (1 + STUDIO_MARKUP_BPS / 10_000.0)
+        seller_amount = float(atomic) / 1e6
+        markup_usd = seller_amount * (STUDIO_MARKUP_BPS / 10_000.0)
+        flat_usd = STUDIO_FLAT_FEE_CENTS / 100.0
+        marked = seller_amount + markup_usd + flat_usd
         cents = max(STUDIO_FLOOR_CENTS, marked * 100)
-        return round(float(int(cents) + (1 if cents > int(cents) else 0)) / 100.0, 6)
+        price_usd = round(float(int(cents) + (1 if cents > int(cents) else 0)) / 100.0, 6)
+        fee_usd = round(price_usd - seller_amount, 6)
+        return {
+            "model": model,
+            "seller_amount_usd": round(seller_amount, 6),
+            "markup_bps": STUDIO_MARKUP_BPS,
+            "markup_usd": round(markup_usd, 6),
+            "flat_fee_usd": round(flat_usd, 6),
+            "price_usd": price_usd,
+            "fee_usd": fee_usd,
+        }
     return None
 
 

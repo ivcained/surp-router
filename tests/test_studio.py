@@ -121,3 +121,28 @@ def test_quote_price_usd_missing_model():
 
 def test_quote_price_usd_no_markets():
     assert st.quote_price_usd("x", None) is None
+
+
+# ── fee breakdown (mirrors SettlementV2.calculateFee) ───────────────────────
+
+def test_quote_breakdown_fields():
+    q = st.quote_breakdown("venice-flux-1.1-pro", [{"model": "venice-flux-1.1-pro", "best_media_unit_price": 11700}])
+    assert q is not None
+    assert q["seller_amount_usd"] == 0.0117
+    assert q["markup_bps"] == 500
+    assert q["markup_usd"] == pytest.approx(0.0117 * 0.05, abs=1e-6)
+    assert q["flat_fee_usd"] == 0.0
+    assert q["price_usd"] == 0.02  # marked 1.2285¢ → ceil → 2¢
+    assert q["fee_usd"] == pytest.approx(0.02 - 0.0117, abs=1e-6)
+
+
+def test_quote_breakdown_with_flat_fee():
+    st.STUDIO_FLAT_FEE_CENTS = 0.2  # $0.002 flat (gas coverage)
+    q = st.quote_breakdown("m", [{"model": "m", "best_media_unit_price": 11700}])
+    st.STUDIO_FLAT_FEE_CENTS = 0
+    assert q["flat_fee_usd"] == 0.002
+    assert q["price_usd"] >= 0.02
+
+
+def test_quote_breakdown_missing():
+    assert st.quote_breakdown("nope", [{"model": "x", "best_media_unit_price": 1}]) is None
