@@ -1869,7 +1869,7 @@ _HTML_BASE = r"""<!DOCTYPE html>
 <div class="site-shell">
   <aside class="site-sidebar">
     <div class="site-brand">
-      <strong>surp</strong>
+      <a href="/" style="text-decoration:none;color:inherit;"><strong>surp</strong></a>
       <small>surplus intelligence router</small>
     </div>
     <nav class="site-menu" aria-label="primary">
