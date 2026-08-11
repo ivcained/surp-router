@@ -51,6 +51,7 @@ import performance_page as pp
 import user_accounts as ua
 import value_index as vi
 import studio as st
+import srp_proposal_page as spp
 
 # ──────────────────────────────────────────────────────────────────────────────
 # x402 imports
@@ -1878,6 +1879,7 @@ _HTML_BASE = r"""<!DOCTYPE html>
       <a href="/">home</a>
       <a href="/docs" class="docs-link">docs ★</a>
       <a href="/about">about</a>
+      <a href="/proposal/srp">SRP proposal</a>
 
       <div class="site-menu-label">▸ build</div>
       <a href="/connect">connect</a>
@@ -3329,8 +3331,23 @@ async def page_proposal(request: web.Request) -> web.Response:
     return web.Response(text=html, content_type="text/html")
 
 
+async def page_srp_proposal(request: web.Request) -> web.Response:
+    """SRP token contract deploy proposal — benefits/risks + advisory vote."""
+    live = {
+        "rewards": rl.global_stats(),
+        "votes": pv.results(proposal="srp-contract"),
+    }
+    content = spp.content(live)
+    html = _render_html(content, "/proposal/srp")
+    return web.Response(text=html, content_type="text/html")
+
+
 async def api_cast_vote(request: web.Request) -> web.Response:
-    """POST /api/vote — cast or change an advisory vote."""
+    """POST /api/vote — cast or change an advisory vote.
+
+    Body: {handle, option, comment, proposal?} — proposal defaults to
+    'flywheel'; the SRP contract proposal uses 'srp-contract'.
+    """
     try:
         body = await request.json()
     except Exception:
@@ -3338,14 +3355,19 @@ async def api_cast_vote(request: web.Request) -> web.Response:
     handle = str(body.get("handle", ""))
     option = str(body.get("option", ""))
     comment = str(body.get("comment", ""))
+    proposal = str(body.get("proposal", "flywheel"))
     ip = request.headers.get("X-Real-IP") or request.remote or ""
-    result = pv.cast_vote(handle, option, comment, ip)
+    result = pv.cast_vote(handle, option, comment, ip, proposal=proposal)
     return web.json_response(result, status=200 if result.get("ok") else 400)
 
 
 async def api_vote_results(request: web.Request) -> web.Response:
-    """GET /api/votes — live vote totals and recent comments."""
-    return web.json_response({**pv.results(), "comments": pv.recent_comments()})
+    """GET /api/votes — live vote totals and recent comments.
+
+    Query param ?proposal=flywheel|srp-contract.
+    """
+    proposal = request.query.get("proposal", "flywheel")
+    return web.json_response({**pv.results(proposal=proposal), "comments": pv.recent_comments(proposal=proposal)})
 
 
 async def page_token_gating(request: web.Request) -> web.Response:
@@ -4234,7 +4256,7 @@ async def serve_robots(request: web.Request) -> web.Response:
 async def serve_sitemap(request: web.Request) -> web.Response:
     import time as _time
     lastmod = _time.strftime("%Y-%m-%d", _time.gmtime())
-    pages = ["/", "/docs", "/connect", "/builder", "/about", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/token-gating", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api"]
+    pages = ["/", "/docs", "/connect", "/builder", "/about", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/token-gating", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api"]
     urls = ""
     for p in pages:
         priority = "1.0" if p == "/" else "0.8" if p in ("/docs", "/connect") else "0.6"
@@ -4286,6 +4308,7 @@ def build_app() -> web.Application:
     app.router.add_get("/miniapp", page_miniapp)
     app.router.add_get("/cache", page_cache)
     app.router.add_get("/proposal", page_proposal)
+    app.router.add_get("/proposal/srp", page_srp_proposal)
     app.router.add_get("/api/votes", api_vote_results)
     app.router.add_post("/api/vote", api_cast_vote)
     app.router.add_get("/token-gating", page_token_gating)

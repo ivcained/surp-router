@@ -21,6 +21,7 @@ const SITE_SECTIONS: { label: string, pages: { path: string, label: string, emph
       { path: '/', label: 'home' },
       { path: '/docs', label: 'docs', emphasize: true },
       { path: '/about', label: 'about' },
+      { path: '/proposal/srp', label: 'SRP proposal' },
     ],
   },
   {
