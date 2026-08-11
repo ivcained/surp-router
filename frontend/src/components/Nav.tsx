@@ -2,12 +2,12 @@ import { shortAddr } from '../lib'
 import type { Page } from '../App'
 import type { ReactNode } from 'react'
 
-const DASH_PAGES: { id: Page, label: string }[] = [
-  { id: 'dashboard', label: 'overview' },
-  { id: 'wallet', label: 'wallet' },
-  { id: 'apikeys', label: 'API keys' },
-  { id: 'activity', label: 'activity' },
-  { id: 'usage', label: 'usage' },
+const DASH_PAGES: { id: Page, label: string, icon: string }[] = [
+  { id: 'dashboard', label: 'overview', icon: '◆' },
+  { id: 'wallet', label: 'wallet', icon: '◈' },
+  { id: 'apikeys', label: 'api keys', icon: '🔑' },
+  { id: 'activity', label: 'activity', icon: '◉' },
+  { id: 'usage', label: 'usage', icon: '≡' },
 ]
 
 // All other site pages — accessible even after login. docs is emphasized.
@@ -19,14 +19,27 @@ const SITE_PAGES: { path: string, label: string, emphasize?: boolean }[] = [
   { path: '/builder', label: 'builder' },
   { path: '/free-models', label: 'free models' },
   { path: '/health', label: 'health board' },
-  { path: '/performance', label: 'verified TPS' },
+  { path: '/performance', label: 'verified tps' },
   { path: '/auction', label: 'cache auction' },
-  { path: '/features', label: 'features & updates' },
+  { path: '/features', label: 'updates' },
   { path: '/top', label: 'top models' },
   { path: '/find', label: 'find model' },
   { path: '/compare', label: 'compare' },
   { path: '/playground', label: 'playground' },
   { path: '/about', label: 'about' },
+]
+
+// Simulated live ticker — in production this fetches from /api/health-board
+const TICKER_ITEMS = [
+  { label: 'surp/free', val: '$0.00', trend: 'free' },
+  { label: 'surp/best-chat', val: '$0.012', trend: '↓' },
+  { label: 'surp/best-coding', val: '$0.034', trend: '↑' },
+  { label: 'usdc/base', val: '$1.00', trend: '—' },
+  { label: 'tps', val: '847', trend: '↑' },
+  { label: 'ttft', val: '120ms', trend: '↓' },
+  { label: 'cache hit rate', val: '34%', trend: '↑' },
+  { label: 'models live', val: '1,204', trend: '—' },
+  { label: 'srp reward pool', val: '2.4M', trend: '↑' },
 ]
 
 export function Nav({
@@ -44,46 +57,49 @@ export function Nav({
     <div style={{ display: 'flex', minHeight: '100vh' }}>
       {/* Left sidebar — vertically stacked menu */}
       <aside style={{
-        width: 220, flexShrink: 0,
-        background: '#0a0a0a', borderRight: '1px solid #1a1a1a',
+        width: 240, flexShrink: 0,
+        background: 'var(--bg)', borderRight: '1px solid var(--border)',
         padding: '20px 0', position: 'fixed', top: 0, bottom: 0, left: 0,
         overflowY: 'auto', zIndex: 50,
+        display: 'flex', flexDirection: 'column',
       }}>
         {/* Brand */}
-        <div style={{ padding: '0 20px 24px', borderBottom: '1px solid #1a1a1a', marginBottom: 16 }}>
-          <a href="/" style={{ textDecoration: 'none', fontWeight: 'bold', fontSize: 18, color: '#00ff9c' }}>
+        <div style={{ padding: '0 20px 20px', borderBottom: '1px solid var(--border)', marginBottom: 16 }}>
+          <a href="/" style={{ textDecoration: 'none', fontWeight: 800, fontSize: 20, color: 'var(--green)', textShadow: 'var(--glow-green)' }}>
             surp
           </a>
-          <p className="dim" style={{ fontSize: 10, marginTop: 4 }}>ivc.lol</p>
+          <p className="faint" style={{ fontSize: 10, marginTop: 4 }}>surplus intelligence</p>
         </div>
 
         {/* Dashboard pages — account section */}
         <div style={{ padding: '0 12px 16px' }}>
-          <p className="dim" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, paddingLeft: 8 }}>
-            account
+          <p className="faint" style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 8, paddingLeft: 12 }}>
+            ▸ account
           </p>
           {DASH_PAGES.map(p => (
             <button
               key={p.id}
               onClick={() => setPage(p.id)}
               style={{
-                display: 'block', width: '100%', textAlign: 'left',
-                background: page === p.id ? '#00ff9c22' : 'transparent',
-                color: page === p.id ? '#00ff9c' : '#888',
-                border: 'none', borderLeft: page === p.id ? '3px solid #00ff9c' : '3px solid transparent',
-                padding: '8px 12px', borderRadius: 4, fontFamily: 'inherit',
+                display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left',
+                background: page === p.id ? 'rgba(0,255,156,0.06)' : 'transparent',
+                color: page === p.id ? 'var(--green)' : 'var(--text-dim)',
+                border: 'none', borderLeft: page === p.id ? '2px solid var(--green)' : '2px solid transparent',
+                padding: '9px 12px', borderRadius: 4, fontFamily: 'var(--font-mono)',
                 fontSize: 13, cursor: 'pointer', marginBottom: 2,
+                textShadow: page === p.id ? 'var(--glow-green)' : 'none',
               }}
             >
+              <span style={{ width: 14, textAlign: 'center', opacity: 0.7 }}>{p.icon}</span>
               {p.label}
             </button>
           ))}
         </div>
 
         {/* Site pages — full site access */}
-        <div style={{ padding: '0 12px' }}>
-          <p className="dim" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, marginTop: 16, paddingLeft: 8 }}>
-            explore
+        <div style={{ padding: '0 12px', flex: 1 }}>
+          <p className="faint" style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 8, marginTop: 8, paddingLeft: 12 }}>
+            ▸ explore
           </p>
           {SITE_PAGES.map(p => (
             <a
@@ -91,32 +107,62 @@ export function Nav({
               href={p.path}
               style={{
                 display: 'block',
-                color: p.emphasize ? '#00ff9c' : '#888',
-                fontWeight: p.emphasize ? 'bold' : 'normal',
+                color: p.emphasize ? 'var(--green)' : 'var(--text-dim)',
+                fontWeight: p.emphasize ? 700 : 400,
                 textDecoration: 'none',
-                borderLeft: p.emphasize ? '3px solid #00ff9c' : '3px solid transparent',
-                padding: '8px 12px', borderRadius: 4, fontFamily: 'inherit',
+                borderLeft: p.emphasize ? '2px solid var(--green)' : '2px solid transparent',
+                padding: '7px 12px', borderRadius: 4, fontFamily: 'var(--font-mono)',
                 fontSize: 13, marginBottom: 2,
               }}
             >
               {p.label}
-              {p.emphasize && <span style={{ float: 'right', opacity: 0.6 }}>★</span>}
+              {p.emphasize && <span style={{ float: 'right', opacity: 0.7 }}>★</span>}
             </a>
           ))}
+        </div>
+
+        {/* Footer status */}
+        <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', marginTop: 'auto' }}>
+          <span className="pulse-dot" /> <span className="faint" style={{ fontSize: 10 }}>all systems nominal</span>
         </div>
       </aside>
 
       {/* Main content area */}
-      <div style={{ marginLeft: 220, flex: 1, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ marginLeft: 240, flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        {/* Live ticker bar — like a trading terminal */}
+        <div style={{
+          background: 'var(--bg-card)', borderBottom: '1px solid var(--border)',
+          overflow: 'hidden', height: 32, display: 'flex', alignItems: 'center',
+        }}>
+          <div style={{
+            padding: '0 12px', background: 'rgba(0,255,156,0.08)',
+            borderRight: '1px solid var(--border)', height: '100%',
+            display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
+          }}>
+            <span className="pulse-dot" />
+            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--green)', letterSpacing: 1 }}>LIVE</span>
+          </div>
+          <div className="ticker-track" style={{ paddingLeft: 12 }}>
+            {[...TICKER_ITEMS, ...TICKER_ITEMS].map((item, i) => (
+              <span key={i} style={{ fontSize: 11, display: 'flex', gap: 6, alignItems: 'center' }}>
+                <span className="faint">{item.label}</span>
+                <span style={{ color: 'var(--green)' }}>{item.val}</span>
+                <span style={{ color: item.trend === '↑' ? 'var(--green)' : item.trend === '↓' ? 'var(--red)' : 'var(--text-faint)' }}>{item.trend}</span>
+                <span style={{ color: 'var(--border-bright)' }}>│</span>
+              </span>
+            ))}
+          </div>
+        </div>
+
         {/* Top bar with wallet widget + logout */}
         <header style={{
           position: 'sticky', top: 0, zIndex: 40,
-          background: 'rgba(0,0,0,0.9)', borderBottom: '1px solid #1a1a1a',
+          background: 'rgba(0,0,0,0.9)', borderBottom: '1px solid var(--border)',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '12px 24px', backdropFilter: 'blur(8px)',
         }}>
-          <span className="dim" style={{ fontSize: 12 }}>
-            {DASH_PAGES.find(p => p.id === page)?.label || 'dashboard'}
+          <span className="faint" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>
+            ▸ {DASH_PAGES.find(p => p.id === page)?.label}
           </span>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -124,24 +170,27 @@ export function Nav({
             <button
               onClick={onWalletClick}
               style={{
-                background: '#0a0a0a', border: '1px solid #00ff9c',
-                color: '#00ff9c', padding: '6px 12px', borderRadius: 16,
-                fontFamily: 'monospace', fontSize: 12, cursor: 'pointer',
+                background: 'var(--bg-card)', border: '1px solid var(--green)',
+                color: 'var(--green)', padding: '7px 14px', borderRadius: 16,
+                fontFamily: 'var(--font-mono)', fontSize: 12, cursor: 'pointer',
                 display: 'flex', alignItems: 'center', gap: 8,
+                transition: 'box-shadow 0.15s',
               }}
+              onMouseEnter={e => e.currentTarget.style.boxShadow = 'var(--glow-green)'}
+              onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
               title="view wallet"
             >
-              <span style={{ fontWeight: 'bold' }}>${usdcBalance}</span>
-              <span style={{ color: '#888' }}>|</span>
-              <span>{shortAddr(walletAddress)}</span>
+              <span style={{ fontWeight: 700, textShadow: 'var(--glow-green)' }}>${usdcBalance}</span>
+              <span style={{ color: 'var(--text-faint)' }}>│</span>
+              <span className="faint">{shortAddr(walletAddress)}</span>
             </button>
 
             <button
               onClick={onLogout}
               style={{
-                background: 'transparent', border: '1px solid #2a2a2a',
-                color: '#888', padding: '6px 12px', borderRadius: 4,
-                fontFamily: 'inherit', fontSize: 12, cursor: 'pointer',
+                background: 'transparent', border: '1px solid var(--border-bright)',
+                color: 'var(--text-dim)', padding: '7px 14px', borderRadius: 4,
+                fontFamily: 'var(--font-mono)', fontSize: 12, cursor: 'pointer',
               }}
             >
               logout
@@ -154,21 +203,6 @@ export function Nav({
           {children}
         </main>
       </div>
-    </div>
-  )
-}
-
-export function WalletWidget({ walletAddress, usdcBalance }: { walletAddress: string, usdcBalance: string }) {
-  return (
-    <div style={{
-      background: '#0a0a0a', border: '1px solid #00ff9c',
-      color: '#00ff9c', padding: '6px 12px', borderRadius: 16,
-      fontFamily: 'monospace', fontSize: 12,
-      display: 'flex', alignItems: 'center', gap: 8,
-    }}>
-      <span style={{ fontWeight: 'bold' }}>${usdcBalance}</span>
-      <span style={{ color: '#888' }}>|</span>
-      <span>{shortAddr(walletAddress)}</span>
     </div>
   )
 }

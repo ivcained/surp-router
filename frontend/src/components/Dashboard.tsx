@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { useAuthFetch, fmtUSD, fmtTime, shortAddr } from '../lib'
+import { useAuthFetch, fmtUSD, shortAddr } from '../lib'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  LineChart, Line, CartesianGrid, PieChart, Pie, Cell, Legend,
+  PieChart, Pie, Cell, CartesianGrid,
 } from 'recharts'
 
 interface Stats {
@@ -45,104 +45,157 @@ export function Dashboard({ walletAddress, balances, onNavigate }: {
     })()
   }, [])
 
-  if (loading) return <div className="card"><h2>Loading dashboard...</h2></div>
+  if (loading) {
+    return (
+      <div className="card" style={{ textAlign: 'center' }}>
+        <span className="pulse-dot" /> <span className="dim">syncing dashboard data...</span>
+      </div>
+    )
+  }
 
   const usdcBalance = balances ? (balances.usdc_atomic / 1e6).toFixed(6) : '0.00'
+  const totalTokens = (stats?.total_input_tokens || 0) + (stats?.total_output_tokens || 0)
 
   return (
     <div>
-      <h1>Dashboard</h1>
-      <p className="sub">your usage overview</p>
-
-      {/* Stat cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 24 }}>
-        <StatCard label="Total Spend" value={fmtUSD(stats?.total_spend_cents || 0)} color="#00ff9c" />
-        <StatCard label="USDC Balance" value={`$${usdcBalance}`} color="#5ce1ff" />
-        <StatCard label="Requests" value={String(stats?.total_requests || 0)} color="#ffd23f" />
-        <StatCard label="Token Volume" value={formatTokens((stats?.total_input_tokens || 0) + (stats?.total_output_tokens || 0))} color="#5ce1ff" />
-        <StatCard label="Marketplace Savings" value={fmtUSD(stats?.marketplace_savings_cents || 0)} color="#00ff9c" />
+      {/* Header with prompt symbol */}
+      <div style={{ marginBottom: 24 }}>
+        <h1 style={{ fontSize: 28, marginBottom: 4 }}>
+          <span style={{ color: 'var(--text-faint)' }}>▶</span> dashboard
+        </h1>
+        <p className="sub" style={{ marginBottom: 0 }}>
+          <span className="faint">real-time usage · </span>
+          <span style={{ color: 'var(--green)' }}>{stats?.total_requests || 0}</span>
+          <span className="faint"> requests processed</span>
+        </p>
       </div>
 
-      {/* Daily spend chart */}
-      <div className="card">
-        <h2>Daily Spend (30 days)</h2>
+      {/* ── Bento grid: primary stat cards ────────────────────────────── */}
+      <div className="bento">
+        {/* Total spend — big card */}
+        <div className="card span-2" style={{ padding: 24 }}>
+          <p className="faint" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 8 }}>
+            total spend
+          </p>
+          <p style={{
+            fontSize: 36, fontWeight: 800, color: 'var(--green)',
+            textShadow: 'var(--glow-green)', fontFamily: 'var(--font-mono)',
+          }}>
+            {fmtUSD(stats?.total_spend_cents || 0)}
+          </p>
+          <p className="faint" style={{ fontSize: 11, marginTop: 4 }}>settled in usdc on base</p>
+        </div>
+
+        {/* USDC balance */}
+        <div className="card" style={{ padding: 24 }}>
+          <p className="faint" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 8 }}>
+            wallet balance
+          </p>
+          <p style={{ fontSize: 28, fontWeight: 800, color: 'var(--cyan)', textShadow: 'var(--glow-cyan)' }}>
+            ${usdcBalance}
+          </p>
+          <p className="faint" style={{ fontSize: 11, marginTop: 4 }}>usdc · {shortAddr(walletAddress)}</p>
+        </div>
+
+        {/* Marketplace savings */}
+        <div className="card" style={{ padding: 24, border: '1px solid rgba(0,255,156,0.2)' }}>
+          <p className="faint" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 8 }}>
+            you saved
+          </p>
+          <p style={{ fontSize: 28, fontWeight: 800, color: 'var(--green)' }}>
+            {fmtUSD(stats?.marketplace_savings_cents || 0)}
+          </p>
+          <p className="faint" style={{ fontSize: 11, marginTop: 4 }}>vs openai pricing</p>
+        </div>
+      </div>
+
+      {/* ── Secondary stat cards row ─────────────────────────────────── */}
+      <div className="bento">
+        <div className="card" style={{ textAlign: 'center', padding: 16 }}>
+          <p className="faint" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>requests</p>
+          <p style={{ fontSize: 22, fontWeight: 700, color: 'var(--cyan)' }}>{stats?.total_requests || 0}</p>
+        </div>
+        <div className="card" style={{ textAlign: 'center', padding: 16 }}>
+          <p className="faint" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>tokens in</p>
+          <p style={{ fontSize: 22, fontWeight: 700, color: 'var(--cyan)' }}>{formatTokens(stats?.total_input_tokens || 0)}</p>
+        </div>
+        <div className="card" style={{ textAlign: 'center', padding: 16 }}>
+          <p className="faint" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>tokens out</p>
+          <p style={{ fontSize: 22, fontWeight: 700, color: 'var(--cyan)' }}>{formatTokens(stats?.total_output_tokens || 0)}</p>
+        </div>
+        <div className="card" style={{ textAlign: 'center', padding: 16 }}>
+          <p className="faint" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>token vol</p>
+          <p style={{ fontSize: 22, fontWeight: 700, color: 'var(--amber)' }}>{formatTokens(totalTokens)}</p>
+        </div>
+      </div>
+
+      {/* ── Daily spend chart — full width ───────────────────────────── */}
+      <div className="card" style={{ marginBottom: 12 }}>
+        <h2>━━ daily spend · 30 days</h2>
         {(stats?.daily_spend?.length || 0) > 0 ? (
-          <ResponsiveContainer width="100%" height={240}>
+          <ResponsiveContainer width="100%" height={220}>
             <BarChart data={stats!.daily_spend.map(d => ({ ...d, spend_usd: d.spend_cents / 100 }))}>
-              <CartesianGrid stroke="#1a1a1a" strokeDasharray="3 3" />
-              <XAxis dataKey="day" stroke="#888" fontSize={10} />
-              <YAxis stroke="#888" fontSize={11} tickFormatter={(v) => `$${v}`} />
+              <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
+              <XAxis dataKey="day" stroke="var(--text-faint)" fontSize={10} tickLine={false} />
+              <YAxis stroke="var(--text-faint)" fontSize={11} tickFormatter={(v) => `$${v}`} tickLine={false} axisLine={false} />
               <Tooltip
-                contentStyle={{ background: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: 4 }}
-                labelStyle={{ color: '#888' }}
-                formatter={(v: any) => [`$${(v as number).toFixed(2)}`, 'spend']}
+                contentStyle={{ background: 'var(--bg)', border: '1px solid var(--border-bright)', borderRadius: 4, fontFamily: 'var(--font-mono)', fontSize: 12 }}
+                labelStyle={{ color: 'var(--text-dim)' }}
+                formatter={(v: any) => [`$${(v as number).toFixed(4)}`, 'spend']}
+                cursor={{ fill: 'rgba(0,255,156,0.05)' }}
               />
-              <Bar dataKey="spend_usd" fill="#00ff9c" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="spend_usd" fill="var(--green)" radius={[3, 3, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         ) : (
-          <p className="dim">No spend data yet — make your first request to see charts.</p>
+          <div style={{ padding: 40, textAlign: 'center' }}>
+            <p className="faint">no spend data yet — make your first request to populate charts</p>
+            <button className="btn btn-outline" style={{ marginTop: 12 }} onClick={() => onNavigate('apikeys')}>create an api key →</button>
+          </div>
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 16 }}>
+      {/* ── Charts row: top models + top api keys ───────────────────── */}
+      <div className="bento">
         {/* Top models pie */}
-        <div className="card">
-          <h2>Top Models</h2>
+        <div className="card span-2">
+          <h2>━━ top models</h2>
           {(stats?.top_models?.length || 0) > 0 ? (
             <ResponsiveContainer width="100%" height={240}>
               <PieChart>
-                <Pie data={stats!.top_models.map(m => ({ name: m.model, value: m.spend_cents }))} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80}>
+                <Pie data={stats!.top_models.map(m => ({ name: m.model, value: m.spend_cents }))} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} innerRadius={40}>
                   {stats!.top_models.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                 </Pie>
-                <Tooltip formatter={(v: any) => fmtUSD(v as number)} contentStyle={{ background: '#0a0a0a', border: '1px solid #1a1a1a' }} />
-                <Legend formatter={(v) => <span style={{ color: '#888', fontSize: 11 }}>{v}</span>} />
+                <Tooltip formatter={(v: any) => fmtUSD(v as number)} contentStyle={{ background: 'var(--bg)', border: '1px solid var(--border-bright)', fontFamily: 'var(--font-mono)' }} />
               </PieChart>
             </ResponsiveContainer>
-          ) : <p className="dim">No model data yet.</p>}
+          ) : <p className="faint">no model data yet</p>}
         </div>
 
-        {/* Top API keys */}
-        <div className="card">
-          <h2>Top API Keys</h2>
+        {/* Top api keys */}
+        <div className="card span-2">
+          <h2>━━ top api keys</h2>
           {(stats?.top_api_keys?.length || 0) > 0 ? (
             <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={stats!.top_api_keys.map(k => ({ name: k.name, requests: k.requests, spend_usd: k.spend_cents / 100 }))} layout="vertical">
-                <CartesianGrid stroke="#1a1a1a" strokeDasharray="3 3" />
-                <XAxis type="number" stroke="#888" fontSize={11} tickFormatter={(v) => `$${v}`} />
-                <YAxis type="category" dataKey="name" stroke="#888" fontSize={11} width={80} />
-                <Tooltip contentStyle={{ background: '#0a0a0a', border: '1px solid #1a1a1a' }} formatter={(v: any) => [`$${(v as number).toFixed(2)}`, 'spend']} />
-                <Bar dataKey="spend_usd" fill="#5ce1ff" radius={[0, 4, 4, 0]} />
+              <BarChart data={stats!.top_api_keys.map(k => ({ name: k.name, spend_usd: k.spend_cents / 100 }))} layout="vertical" margin={{ left: 20 }}>
+                <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
+                <XAxis type="number" stroke="var(--text-faint)" fontSize={11} tickFormatter={(v) => `$${v}`} tickLine={false} axisLine={false} />
+                <YAxis type="category" dataKey="name" stroke="var(--text-faint)" fontSize={11} width={80} tickLine={false} axisLine={false} />
+                <Tooltip contentStyle={{ background: 'var(--bg)', border: '1px solid var(--border-bright)', fontFamily: 'var(--font-mono)' }} formatter={(v: any) => [`$${(v as number).toFixed(2)}`, 'spend']} cursor={{ fill: 'rgba(92,225,255,0.05)' }} />
+                <Bar dataKey="spend_usd" fill="var(--cyan)" radius={[0, 3, 3, 0]} />
               </BarChart>
             </ResponsiveContainer>
-          ) : <p className="dim">No API key data yet.</p>}
+          ) : <p className="faint">no api key data yet</p>}
         </div>
       </div>
 
-      {/* Wallet section */}
-      <div className="card" style={{ marginTop: 16 }}>
-        <h2>Your Wallet</h2>
-        <p className="dim">Embedded wallet address</p>
-        <div className="wallet-addr">{walletAddress}</div>
-        <button className="btn btn-outline" onClick={() => onNavigate('wallet')}>Manage Wallet →</button>
+      {/* ── Quick actions ───────────────────────────────────────────── */}
+      <div className="card" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+        <h2 style={{ margin: 0, marginRight: 'auto' }}>━━ quick actions</h2>
+        <button className="btn" onClick={() => onNavigate('apikeys')}>+ create api key</button>
+        <button className="btn btn-outline" onClick={() => onNavigate('wallet')}>add funds →</button>
+        <button className="btn btn-outline" onClick={() => onNavigate('activity')}>view activity →</button>
       </div>
-
-      {/* Quick start */}
-      <div className="card">
-        <h2>Quick Start</h2>
-        <p className="dim" style={{ marginBottom: 12 }}>Create an API key, fund your wallet, then make your first request:</p>
-        <button className="btn" onClick={() => onNavigate('apikeys')}>Create API Key →</button>
-        <button className="btn btn-outline" style={{ marginLeft: 8 }} onClick={() => onNavigate('wallet')}>Add Funds →</button>
-      </div>
-    </div>
-  )
-}
-
-function StatCard({ label, value, color }: { label: string, value: string, color: string }) {
-  return (
-    <div className="card" style={{ textAlign: 'center', padding: 16 }}>
-      <p className="dim" style={{ fontSize: 11, marginBottom: 4 }}>{label}</p>
-      <p style={{ fontSize: 22, fontWeight: 'bold', color }}>{value}</p>
     </div>
   )
 }

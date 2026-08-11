@@ -1,7 +1,6 @@
 import { usePrivy, useWallets } from '@privy-io/react-auth'
 import { useState, useEffect, useCallback } from 'react'
 import {
-  WalletWidget,
   Dashboard,
   ApiKeys,
   Activity,
