@@ -148,17 +148,108 @@ def speed_score(p50_tps: float, fastest_tps: float) -> float:
     return round(100.0 * (p50_tps / fastest_tps), 1)
 
 
-def composite(cost: float, intel: float, speed: float) -> float:
-    """Weighted geometric mean → 0-100 SVI."""
-    wsum = W_COST + W_INTEL + W_SPEED
+def composite(cost: float, intel: float, speed: float,
+              weights: Optional[tuple[float, float, float]] = None) -> float:
+    """Weighted geometric mean → 0-100 SVI.
+
+    weights: optional (cost, intel, speed) override. Defaults to the
+    module-level W_COST/W_INTEL/W_SPEED.
+    """
+    if weights is not None:
+        wc, wi, ws = weights
+    else:
+        wc, wi, ws = W_COST, W_INTEL, W_SPEED
+    wsum = wc + wi + ws
     if wsum <= 0:
         return 0.0
     # Guard against zero axes (log of 0). Floor at a small epsilon.
     c = max(cost, 0.01)
     i = max(intel, 0.01)
     s = max(speed, 0.01)
-    raw = (c ** (W_COST / wsum)) * (i ** (W_INTEL / wsum)) * (s ** (W_SPEED / wsum))
+    raw = (c ** (wc / wsum)) * (i ** (wi / wsum)) * (s ** (ws / wsum))
     return round(raw, 1)
+
+
+# ── Routing modes ─────────────────────────────────────────────────────────────
+# Users can route by their own lens, not just the default SVI. Each mode is a
+# (cost, intel, speed) weight triple. 'cost' is special-cased to pure cheapest
+# in pick_winner (agents running overnight genuinely want minimum price).
+
+MODE_WEIGHTS: dict[str, tuple[float, float, float]] = {
+    "value":    (0.45, 0.40, 0.15),   # default SVI
+    "balanced": (1/3, 1/3, 1/3),
+    "speed":    (0.15, 0.15, 0.70),   # interactive work
+    "intel":    (0.20, 0.60, 0.20),   # hard problems
+    "cost":     (0.80, 0.10, 0.10),   # overnight batch (pure cheapest in pick_winner)
+}
+
+
+def parse_weights(spec: Optional[str]) -> Optional[tuple[float, float, float]]:
+    """Parse a custom weight spec like '0.3:0.4:0.3' → (cost, intel, speed).
+
+    Returns None if invalid/absent.
+    """
+    if not spec:
+        return None
+    try:
+        parts = [float(x.strip()) for x in spec.split(":")]
+        if len(parts) != 3 or any(x < 0 for x in parts):
+            return None
+        return (parts[0], parts[1], parts[2])
+    except (ValueError, AttributeError):
+        return None
+
+
+def pick_winner(models: list[dict[str, Any]], mode: str = "value",
+                weights: Optional[tuple[float, float, float]] = None,
+                bench: Optional[dict] = None) -> tuple[Optional[str], str, Optional[dict]]:
+    """Pick the best model to route to, by the requested mode.
+
+    models: [{model, price_usd_per_1m, p50_tps}] — p50_tps 0 means the model
+            has no verified benchmark (speed unknown).
+    mode:   'cost' | 'value' | 'balanced' | 'speed' | 'intel'
+    weights: optional (cost, intel, speed) override — takes precedence over mode.
+
+    Returns (model_id, reason, breakdown) where reason explains the choice
+    (e.g. 'value', 'cost', 'speed-fallback-to-cost').
+    """
+    bench = bench if bench is not None else _load_benchmarks()
+    if not models:
+        return None, "empty-pool", None
+
+    # Pure cost: minimum price, no benchmark needed.
+    if mode == "cost" and weights is None:
+        best = min(models, key=lambda m: m.get("price_usd_per_1m", float("inf")))
+        return best["model"], "cost", None
+
+    # Reference values from the pool.
+    prices = [m.get("price_usd_per_1m", 0) for m in models if m.get("price_usd_per_1m", 0) > 0]
+    tps_vals = [m.get("p50_tps", 0) for m in models if m.get("p50_tps", 0) > 0]
+    cheapest = min(prices) if prices else 0.0
+    fastest = max(tps_vals) if tps_vals else 0.0
+
+    # Intelligence-only mode needs no speed.
+    if mode == "intel" and weights is None:
+        best = max(models, key=lambda m: intelligence_score(m["model"], bench))
+        return best["model"], "intel", None
+
+    # Speed / value / balanced / custom need verified TPS. If none of the pool
+    # is benchmarked, fall back to cheapest so routing never fails.
+    if fastest <= 0:
+        best = min(models, key=lambda m: m.get("price_usd_per_1m", float("inf")))
+        return best["model"], "cost-fallback", None
+
+    w = weights if weights is not None else MODE_WEIGHTS.get(mode, MODE_WEIGHTS["value"])
+
+    def score(m: dict) -> float:
+        c = cost_score(m.get("price_usd_per_1m", 0), cheapest)
+        i = intelligence_score(m["model"], bench)
+        s = speed_score(m.get("p50_tps", 0), fastest)
+        return composite(c, i, s, w)
+
+    best = max(models, key=score)
+    reason = "custom-weights" if weights is not None else mode
+    return best["model"], reason, None
 
 
 def index_for(model: str, price_usd_per_1m: float, p50_tps: float,

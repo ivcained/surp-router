@@ -195,7 +195,8 @@ def _price_to_cents(surplus_price_per_1m: float, expected_tokens: int = 1500) ->
 # HTTP 402 response builder
 # ──────────────────────────────────────────────────────────────────────────────
 
-def _build_payment_required(combo: str, model: str, surplus_price: float, expected_tokens: int) -> dict:
+def _build_payment_required(combo: str, model: str, surplus_price: float, expected_tokens: int,
+                            routing_reason: str = "") -> dict:
     """Build the 402 response body + PAYMENT-REQUIRED header.
 
     Returns a dict with 'status', 'headers', 'body' for aiohttp to emit.
@@ -234,6 +235,7 @@ def _build_payment_required(combo: str, model: str, surplus_price: float, expect
         "resource": "POST /v1/chat/completions",
         "combo": combo,
         "routed_model": model,
+        "routing_reason": routing_reason,
         "surplus_price_per_1m": surplus_price,
         "expected_tokens": expected_tokens,
         "price_usd": price_str,
@@ -943,9 +945,21 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
     strict_mode = combo.startswith("strict/")
     if strict_mode:
         combo = combo[len("strict/"):]
+    routing_reason = ""  # set by the routing block below; default for early paths
     max_price = float(payload.pop("max_price_per_1m", 0) or 0)
     provider_hint = payload.pop("provider", None)
     bypass_cache = bool(payload.pop("surp_bypass_cache", False))
+    # SVI routing mode: how to pick the winner from the pool. Default 'cost'
+    # preserves existing behavior (cheapest). 'value'/'balanced'/'speed'/'intel'
+    # route by the Surp Value Index with the corresponding weight lens, and
+    # surp_weights accepts a custom (cost:intel:speed) triple.
+    surp_mode = str(payload.pop("surp_mode", "cost") or "cost").lower()
+    surp_weights = vi.parse_weights(str(payload.pop("surp_weights", "") or ""))
+    if surp_mode not in vi.MODE_WEIGHTS:
+        return web.json_response(
+            {"error": f"surp_mode must be one of {sorted(vi.MODE_WEIGHTS)}"},
+            status=400,
+        )
 
     try:
         markets = await GCACHE.get()
@@ -990,9 +1004,33 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
                 status=404,
             )
     try:
-        winner, routing_reason = _STICKY_ROUTER.choose(combo, routing_pool)
-        resolved_model = winner["model"]
-        surplus_price = cr.price_of(winner)
+        if surp_mode != "cost" or surp_weights is not None:
+            # SVI-aware routing: pick the winner by the requested value lens
+            # instead of pure cheapest. Build the pool as {model, price, tps}
+            # and let value_index decide (falls back to cheapest if no model
+            # in the pool has verified speed).
+            _pool_for_svi = [
+                {
+                    "model": m.get("model"),
+                    "price_usd_per_1m": cr.usd_per_1m(m),
+                    "p50_tps": mb.summary(m.get("model", "")).get("p50_output_tps", 0),
+                }
+                for m in routing_pool if m.get("model")
+            ]
+            _winner_model, routing_reason, _ = vi.pick_winner(
+                _pool_for_svi, mode=surp_mode, weights=surp_weights
+            )
+            if _winner_model is None:
+                raise RuntimeError("svi pick_winner returned no model")
+            winner = next((m for m in routing_pool if m.get("model") == _winner_model), None)
+            if winner is None:
+                raise RuntimeError("svi winner not in pool")
+            resolved_model = winner["model"]
+            surplus_price = cr.price_of(winner)
+        else:
+            winner, routing_reason = _STICKY_ROUTER.choose(combo, routing_pool)
+            resolved_model = winner["model"]
+            surplus_price = cr.price_of(winner)
     except Exception:
         resolved_model = live_model
         routing_reason = "live-cheapest"
@@ -1086,7 +1124,8 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
 
     # ── Path C: x402 ──
     elif not (request.headers.get("PAYMENT-SIGNATURE") or request.headers.get("X-PAYMENT")):
-        resp = _build_payment_required(combo, resolved_model, surplus_price, expected_tokens)
+        resp = _build_payment_required(combo, resolved_model, surplus_price, expected_tokens,
+                                       routing_reason=routing_reason)
         log.info(f"402 {combo} -> {resolved_model} price=${resp['body']['price_usd']} (no payment)")
         return web.json_response(resp["body"], status=resp["status"], headers=resp["headers"])
 
@@ -3540,6 +3579,25 @@ or improving real served TPS.</p>
 <tr><th>#</th><th>model</th><th>SVI</th><th>cost</th><th>intel</th><th>speed</th><th>price</th><th>tps</th></tr>
 {rows_html}
 </table>
+<h2>## route by your own lens</h2>
+<p>You don't have to use the default weights. Pass <code>surp_mode</code> to
+any combo to route by the lens that fits the job:</p>
+<table>
+<tr><th>mode</th><th>weights (cost·intel·speed)</th><th>use for</th></tr>
+<tr><td><code>cost</code></td><td>pure cheapest</td><td>overnight batch, agents that can wait</td></tr>
+<tr><td><code>value</code></td><td>45·40·15</td><td>default SVI — best all-round value</td></tr>
+<tr><td><code>balanced</code></td><td>33·33·33</td><td>no strong preference</td></tr>
+<tr><td><code>speed</code></td><td>15·15·70</td><td>interactive work, pair programming</td></tr>
+<tr><td><code>intel</code></td><td>20·60·20</td><td>hard reasoning problems</td></tr>
+</table>
+<pre>curl -X POST https://surp.ivc.lol/v1/chat/completions \\
+  -H "Content-Type: application/json" \\
+  -d '{{"model":"surp/best-chat","surp_mode":"speed",
+       "messages":[{{"role":"user","content":"hi"}}]}}'</pre>
+<p class="dim">Or go fully custom with <code>surp_weights</code> — a
+<code>cost:intel:speed</code> triple, e.g. <code>"surp_weights":"0.3:0.4:0.3"</code>.
+Models without a verified TPS fall back to cheapest so routing never fails.
+The 402 response includes <code>routing_reason</code> so you can see which lens won.</p>
 <h2>## submit a benchmark</h2>
 <pre>curl -X POST https://surp.ivc.lol/api/svi/benchmark \\
   -H "Content-Type: application/json" \\

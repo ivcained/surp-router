@@ -148,3 +148,78 @@ def test_index_for_full_breakdown():
     assert idx["cost_score"] == 100.0  # it IS the cheapest in this set
     assert idx["speed_score"] == pytest.approx(94 / 120 * 100, abs=0.5)
     assert 0 < idx["svi"] <= 100
+
+
+# ── routing modes (pick_winner) ─────────────────────────────────────────────
+
+def _pool():
+    return [
+        {"model": "cheap-slow", "price_usd_per_1m": 0.10, "p50_tps": 20},
+        {"model": "mid", "price_usd_per_1m": 1.00, "p50_tps": 80},
+        {"model": "pricy-fast", "price_usd_per_1m": 5.00, "p50_tps": 200},
+    ]
+
+
+def test_pick_winner_cost_mode():
+    winner, reason, _ = vi.pick_winner(_pool(), mode="cost")
+    assert winner == "cheap-slow"
+    assert reason == "cost"
+
+
+def test_pick_winner_speed_mode():
+    winner, reason, _ = vi.pick_winner(_pool(), mode="speed")
+    assert winner == "pricy-fast"
+    assert reason == "speed"
+
+
+def test_pick_winner_value_mode_default_svi():
+    # Default SVI weights (cost 45 / intel 40 / speed 15) — mid should win
+    # (not too cheap/slow, not too pricy/fast).
+    winner, reason, _ = vi.pick_winner(_pool(), mode="value")
+    assert reason == "value"
+    assert winner in {"cheap-slow", "mid", "pricy-fast"}
+
+
+def test_pick_winner_custom_weights_speed_heavy():
+    # Speed-heavy custom weights should pick the fastest.
+    winner, _, _ = vi.pick_winner(_pool(), weights=(0.1, 0.1, 0.8))
+    assert winner == "pricy-fast"
+
+
+def test_pick_winner_custom_weights_cost_heavy():
+    winner, _, _ = vi.pick_winner(_pool(), weights=(0.8, 0.1, 0.1))
+    assert winner == "cheap-slow"
+
+
+def test_pick_winner_falls_back_when_no_verified_tps():
+    pool = [
+        {"model": "a", "price_usd_per_1m": 0.5, "p50_tps": 0},
+        {"model": "b", "price_usd_per_1m": 1.0, "p50_tps": 0},
+    ]
+    winner, reason, _ = vi.pick_winner(pool, mode="value")
+    assert winner == "a"  # cheapest fallback
+    assert reason == "cost-fallback"
+
+
+def test_pick_winner_empty_pool():
+    winner, reason, _ = vi.pick_winner([], mode="value")
+    assert winner is None
+    assert reason == "empty-pool"
+
+
+def test_parse_weights_valid():
+    assert vi.parse_weights("0.3:0.4:0.3") == (0.3, 0.4, 0.3)
+
+
+def test_parse_weights_invalid():
+    assert vi.parse_weights("1:2") is None
+    assert vi.parse_weights("a:b:c") is None
+    assert vi.parse_weights("") is None
+    assert vi.parse_weights(None) is None
+
+
+def test_composite_with_custom_weights():
+    # Same sub-scores, different weights → different composite.
+    v_default = vi.composite(50, 80, 90)
+    v_speed = vi.composite(50, 80, 90, weights=(0.1, 0.1, 0.8))
+    assert v_speed > v_default  # speed-heavy weights favor the fast model
