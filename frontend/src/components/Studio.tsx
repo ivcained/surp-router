@@ -21,10 +21,25 @@ const PRESETS: { label: string; prompt: string }[] = [
 ]
 
 const ASPECTS = ['square_hd', 'portrait_4_3', 'landscape_4_3', 'portrait_16_9', 'landscape_16_9']
+const IMAGE_MODELS = [
+  { id: 'venice-flux-1.1-pro', label: 'Flux 1.1 Pro' },
+  { id: 'venice-flux-2-pro', label: 'Flux 2 Pro' },
+  { id: 'venice-gpt-image-2', label: 'GPT Image 2' },
+  { id: 'venice-hunyuan-image-v3', label: 'Hunyuan Image v3' },
+  { id: 'venice-qwen-image-2', label: 'Qwen Image 2' },
+  { id: 'venice-sd35', label: 'SD 3.5' },
+  { id: 'venice-sdxl', label: 'SDXL' },
+  { id: 'venice-z-image-turbo', label: 'Z-Image Turbo' },
+]
 const VIDEO_MODELS = [
-  { id: 'fal-ai/minimax/video-01-live', label: 'MiniMax Video-01' },
-  { id: 'fal-ai/kling-video/v2/master/image-to-video', label: 'Kling 2.0 Master' },
-  { id: 'fal-ai/luma-dream-machine/image-to-video', label: 'Luma Dream Machine' },
+  { id: 'venice-wan-2.7', label: 'Wan 2.7' },
+  { id: 'venice-wan-2.7-pro', label: 'Wan 2.7 Pro' },
+  { id: 'veo3-fast-text-to-video', label: 'Veo 3 Fast' },
+  { id: 'seedance-1-5-pro-text-to-video', label: 'Seedance 1.5 Pro' },
+  { id: 'kling-v3-pro-text-to-video', label: 'Kling v3 Pro' },
+  { id: 'runway-gen4-turbo', label: 'Runway Gen4 Turbo' },
+  { id: 'pixverse-v5-6-text-to-video', label: 'Pixverse v5.6' },
+  { id: 'ltx-2-fast-text-to-video', label: 'LTX-2 Fast' },
 ]
 
 export function Studio() {
@@ -57,7 +72,7 @@ export function Studio() {
         <div className="card" style={{ borderColor: '#ffd23f', marginBottom: 16 }}>
           <p style={{ color: '#ffd23f', margin: 0 }}>
             ⚠ generation provider not configured — running in <b>mock mode</b>.
-            Set <code>SURP_FAL_KEY</code> in /etc/surp/surp.env to enable real Flux/Kling/MiniMax generation.
+            Set <code>SURPLUS_INTELLIGENCE_API_KEY</code> in /etc/surp/surp.env to enable real Flux/Wan/Kling/Veo generation.
           </p>
         </div>
       )}
@@ -183,6 +198,7 @@ function ImagePane({ authFetch, onDone }: { authFetch: (u: string, o?: any) => P
   const [mode, setMode] = useState<'t2i' | 'i2i'>('t2i')
   const [prompt, setPrompt] = useState('')
   const [srcImage, setSrcImage] = useState<string>('')
+  const [imageModel, setImageModel] = useState(IMAGE_MODELS[0].id)
   const [params, setParams] = useState<any>({ steps: 28, guidance: 3.5, seed: 0, strength: 0.6, aspect: 'square_hd' })
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<Creation | null>(null)
@@ -202,7 +218,7 @@ function ImagePane({ authFetch, onDone }: { authFetch: (u: string, o?: any) => P
     try {
       const res = await authFetch('/api/studio/generate', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kind: 'image', mode, prompt, image_url: srcImage, params }),
+        body: JSON.stringify({ kind: 'image', mode, prompt, image_url: srcImage, params: { ...params, image_model: imageModel } }),
       })
       const data = await res.json()
       if (!res.ok) { setErr(data.error || 'generation failed'); return }
@@ -232,6 +248,13 @@ function ImagePane({ authFetch, onDone }: { authFetch: (u: string, o?: any) => P
           )}
         </div>
       )}
+      <div style={{ marginBottom: 12 }}>
+        <span className="dim" style={{ fontSize: 12, marginRight: 8 }}>model:</span>
+        <select value={imageModel} onChange={e => setImageModel(e.target.value)}
+          style={{ background: '#000', color: 'var(--fg)', border: '1px solid var(--border)', borderRadius: 4, padding: '6px 8px', fontFamily: 'var(--font-mono)', fontSize: 12 }}>
+          {IMAGE_MODELS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+        </select>
+      </div>
       <PromptBox prompt={prompt} setPrompt={setPrompt} preset="" onPreset={setPrompt}
         onGenerate={generate} busy={busy} label={mode === 't2i' ? 'generate image' : 'transform image'} />
       <ParamsPanel params={params} setParams={setParams} />

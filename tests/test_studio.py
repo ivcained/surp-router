@@ -12,6 +12,7 @@ import studio as st
 def _isolate(tmp_path, monkeypatch):
     monkeypatch.setattr(st, "DB_PATH", str(tmp_path / "studio.db"))
     monkeypatch.setattr(st, "MEDIA_DIR", str(tmp_path / "media"))
+    monkeypatch.setattr(st, "SURPLUS_KEY", "")
     monkeypatch.setattr(st, "FAL_KEY", "")
     st._conn = None  # reset the cached connection
     st.conn()  # create schema
@@ -88,3 +89,11 @@ def test_provider_status():
     s = st.provider_status()
     assert s["provider"] == "mock"
     assert s["configured"] is False
+
+
+def test_provider_status_surplus():
+    st.SURPLUS_KEY = "test-key"
+    s = st.provider_status()
+    assert s["provider"] == "surplus"
+    assert s["configured"] is True
+    st.SURPLUS_KEY = ""
