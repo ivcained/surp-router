@@ -28,6 +28,15 @@ export function ApiKeys() {
   const [copied, setCopied] = useState(false)
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState('')
+  const [copiedUrl, setCopiedUrl] = useState(false)
+
+  const API_BASE_URL = 'https://surp.ivc.lol/v1'
+
+  const copyBaseUrl = () => {
+    navigator.clipboard.writeText(API_BASE_URL)
+    setCopiedUrl(true)
+    setTimeout(() => setCopiedUrl(false), 2000)
+  }
 
   const loadKeys = async () => {
     try {
@@ -118,6 +127,49 @@ export function ApiKeys() {
           </button>
         </div>
       )}
+
+      {/* API base URL — copy-paste into any client */}
+      <div className="card">
+        <h2>API Base URL</h2>
+        <p className="dim" style={{ marginBottom: 12 }}>
+          Use this as the base URL in any OpenAI-compatible client (Cursor, Continue,
+          the OpenAI SDK, curl, etc.). Send your API key in the Authorization header.
+        </p>
+        <div className="wallet-addr" style={{ fontSize: 13 }}>{API_BASE_URL}</div>
+        <button className="btn btn-outline" onClick={copyBaseUrl}>
+          {copiedUrl ? '✓ copied' : 'copy base URL'}
+        </button>
+        <pre style={{
+          background: '#0a0a0a', padding: 12, borderRadius: 4,
+          border: '1px solid #1a1a1a', overflowX: 'auto', fontSize: 12,
+          marginTop: 12,
+        }}>
+{`from openai import OpenAI
+
+client = OpenAI(
+    base_url="${API_BASE_URL}",
+    api_key="<your-api-key>",
+)
+
+resp = client.chat.completions.create(
+    model="surp/best-chat",
+    messages=[{"role": "user", "content": "Hello"}],
+)
+print(resp.choices[0].message.content)`}
+        </pre>
+        <p className="dim" style={{ fontSize: 11, marginTop: 8 }}>
+          Or with curl:
+        </p>
+        <pre style={{
+          background: '#0a0a0a', padding: 12, borderRadius: 4,
+          border: '1px solid #1a1a1a', overflowX: 'auto', fontSize: 12,
+        }}>
+{`curl ${API_BASE_URL}/chat/completions \\
+  -H "Authorization: Bearer <your-api-key>" \\
+  -H "Content-Type: application/json" \\
+  -d '{"model":"surp/best-chat","messages":[{"role":"user","content":"Hello"}]}'`}
+        </pre>
+      </div>
 
       {/* Create new key */}
       {showCreate ? (
