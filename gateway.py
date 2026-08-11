@@ -1687,7 +1687,10 @@ _HTML_BASE = r"""<!DOCTYPE html>
   .site-shell { min-height: 100vh; }
   .site-sidebar {
     position: fixed; inset: 0 auto 0 0; width: 240px; z-index: 60;
-    background: #000; border-right: 1px solid var(--border);
+    /* Slight elevation makes the persistent nav visibly distinct from
+       the page canvas — it should never look like it disappeared. */
+    background: #060806; border-right: 1px solid var(--border-bright);
+    box-shadow: 3px 0 20px rgba(0,0,0,.38);
     display: flex; flex-direction: column; overflow-y: auto;
   }
   .site-brand {
@@ -1698,7 +1701,13 @@ _HTML_BASE = r"""<!DOCTYPE html>
     text-shadow: 0 0 12px rgba(0,255,156,.35), 0 0 4px rgba(0,255,156,.6);
   }
   .site-brand small { display: block; color: #555; font-size: 10px; margin-top: 7px; }
-  .site-menu { padding: 0 12px 16px; }
+  .site-menu {
+    /* Override the global 'nav { display:flex }' rule — the sidebar menu
+       must stack links vertically, one below the other. Without this the
+       generic nav rule lays them out in a row and they overflow sideways. */
+    display: flex; flex-direction: column; flex-wrap: nowrap;
+    padding: 0 12px 16px;
+  }
   .site-menu-label {
     color: #555; font-size: 9px; text-transform: uppercase; letter-spacing: 1.5px;
     margin: 18px 0 8px; padding-left: 12px;
