@@ -509,6 +509,9 @@ def _render_html(content: str, path: str = "/") -> str:
     html = html.replace("__DESC__", meta["desc"])
     html = html.replace("__PATH__", path)
     html = html.replace("__JSONLD__", _json.dumps(JSONLD_ORG))
+    # Breadcrumb label for the universal top bar.
+    breadcrumb = meta["title"].split(" — ")[0].lower().strip()
+    html = html.replace("__BREADCRUMB__", breadcrumb)
     return html
 
 
@@ -1679,9 +1682,167 @@ _HTML_BASE = r"""<!DOCTYPE html>
   }
   .announce .announce-close:hover { color: #e0e0e0; }
   .announce.hidden { display: none; }
+
+  /* ── Universal Phosphor Terminal shell ─────────────────────────────── */
+  .site-shell { min-height: 100vh; }
+  .site-sidebar {
+    position: fixed; inset: 0 auto 0 0; width: 240px; z-index: 60;
+    background: #000; border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow-y: auto;
+  }
+  .site-brand {
+    padding: 20px; border-bottom: 1px solid var(--border); margin-bottom: 16px;
+  }
+  .site-brand strong {
+    display: block; color: var(--accent); font-size: 20px; line-height: 1;
+    text-shadow: 0 0 12px rgba(0,255,156,.35), 0 0 4px rgba(0,255,156,.6);
+  }
+  .site-brand small { display: block; color: #555; font-size: 10px; margin-top: 7px; }
+  .site-menu { padding: 0 12px 16px; }
+  .site-menu-label {
+    color: #555; font-size: 9px; text-transform: uppercase; letter-spacing: 1.5px;
+    margin: 16px 0 8px; padding-left: 12px;
+  }
+  .site-menu a {
+    display: block; color: var(--fg-dim); border-left: 2px solid transparent;
+    padding: 7px 12px; border-radius: 4px; font-size: 13px; text-decoration: none;
+    transition: color .15s, background .15s, border-color .15s;
+  }
+  .site-menu a:hover {
+    color: var(--accent); background: rgba(0,255,156,.06);
+    border-left-color: var(--accent); text-decoration: none;
+  }
+  .site-menu a.docs-link {
+    color: var(--accent); font-weight: 700; border-left-color: var(--accent);
+  }
+  .site-system {
+    margin-top: auto; padding: 13px 20px; border-top: 1px solid var(--border);
+    color: #555; font-size: 10px;
+  }
+  .site-system-dot {
+    display: inline-block; width: 7px; height: 7px; margin-right: 7px;
+    border-radius: 50%; background: var(--accent); vertical-align: middle;
+    animation: pulse 1.5s ease-in-out infinite;
+    box-shadow: 0 0 6px rgba(0,255,156,.7);
+  }
+  .site-main { margin-left: 240px; min-width: 0; }
+  .market-ticker {
+    height: 32px; display: flex; align-items: center; overflow: hidden;
+    background: var(--bg-alt); border-bottom: 1px solid var(--border);
+  }
+  .market-live {
+    height: 100%; display: flex; align-items: center; gap: 7px; flex-shrink: 0;
+    padding: 0 12px; color: var(--accent); background: rgba(0,255,156,.08);
+    border-right: 1px solid var(--border); font-size: 10px; font-weight: 700;
+    letter-spacing: 1px;
+  }
+  .market-track {
+    display: flex; gap: 32px; width: max-content; white-space: nowrap;
+    padding-left: 14px; animation: market-scroll 42s linear infinite;
+  }
+  .market-track span { font-size: 11px; color: #555; }
+  .market-track b { color: var(--accent); font-weight: 500; }
+  .market-track i { color: var(--border-bright); font-style: normal; }
+  @keyframes market-scroll { to { transform: translateX(-50%); } }
+  .site-topbar {
+    position: sticky; top: 0; z-index: 50; min-height: 52px;
+    display: flex; justify-content: space-between; align-items: center; gap: 16px;
+    padding: 10px 24px; background: rgba(0,0,0,.92);
+    border-bottom: 1px solid var(--border); backdrop-filter: blur(8px);
+  }
+  .site-breadcrumb { color: #555; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+  .site-actions { display: flex; align-items: center; gap: 8px; }
+  .site-actions a {
+    display: inline-flex; align-items: center; min-height: 32px; padding: 6px 13px;
+    border: 1px solid var(--border-bright); border-radius: 4px;
+    color: var(--fg-dim); font-size: 12px; text-decoration: none;
+  }
+  .site-actions a:hover { color: var(--accent); border-color: var(--accent); text-decoration: none; }
+  .site-actions .account-link {
+    color: var(--accent); border-color: var(--accent); border-radius: 16px;
+    text-shadow: 0 0 8px rgba(0,255,156,.45);
+  }
+  .site-content { max-width: 1200px; margin: 0 auto; padding: 22px 24px 60px; }
+  .site-content > nav { display: none; }
+  .site-content .announce { margin-top: 0; }
+  .site-content h1 { color: var(--accent); text-shadow: 0 0 10px rgba(0,255,156,.22); }
+  .site-content .card { border-radius: 6px; transition: border-color .2s, box-shadow .2s; }
+  .site-content .card:hover { border-color: var(--border-bright); }
+
+  @media (max-width: 900px) {
+    .site-sidebar { display: none; }
+    .site-main { margin-left: 0; }
+    .site-topbar { padding: 9px 12px; }
+    .site-content { padding: 16px 12px 40px; }
+    .site-actions .hide-mobile { display: none; }
+    .market-track { animation-duration: 30s; }
+    .site-content > nav {
+      display: flex; flex-direction: column; align-items: stretch; gap: 8px;
+      padding: 12px 0; margin-bottom: 16px;
+    }
+    .site-content > nav ul { justify-content: center; gap: 10px; }
+  }
 </style>
 </head>
 <body>
+<div class="site-shell">
+  <aside class="site-sidebar">
+    <div class="site-brand">
+      <strong>surp</strong>
+      <small>surplus intelligence router</small>
+    </div>
+    <nav class="site-menu" aria-label="primary">
+      <div class="site-menu-label">▸ explore</div>
+      <a href="/">home</a>
+      <a href="/docs" class="docs-link">docs ★</a>
+      <a href="/status">status</a>
+      <a href="/connect">connect</a>
+      <a href="/builder">builder</a>
+      <a href="/free-models">free models</a>
+      <a href="/health">health board</a>
+      <a href="/performance">verified tps</a>
+      <a href="/auction">cache auction</a>
+      <a href="/features">updates</a>
+      <a href="/top">top models</a>
+      <a href="/find">find model</a>
+      <a href="/compare">compare</a>
+      <a href="/playground">playground</a>
+      <a href="/about">about</a>
+    </nav>
+    <div class="site-system"><span class="site-system-dot"></span>all systems nominal</div>
+  </aside>
+  <div class="site-main">
+    <div class="market-ticker" aria-hidden="true">
+      <div class="market-live"><span class="live-dot"></span>LIVE</div>
+      <div class="market-track">
+        <span>surp/free <b>$0.00</b> free</span><i>│</i>
+        <span>surp/best-chat <b>$0.012</b> ↓</span><i>│</i>
+        <span>surp/best-coding <b>$0.034</b> ↑</span><i>│</i>
+        <span>usdc/base <b>$1.00</b></span><i>│</i>
+        <span>tps <b>847</b> ↑</span><i>│</i>
+        <span>ttft <b>120ms</b> ↓</span><i>│</i>
+        <span>cache hit <b>34%</b> ↑</span><i>│</i>
+        <span>models live <b>1,204</b></span><i>│</i>
+        <span>srp pool <b>2.4M</b> ↑</span><i>│</i>
+        <span>surp/free <b>$0.00</b> free</span><i>│</i>
+        <span>surp/best-chat <b>$0.012</b> ↓</span><i>│</i>
+        <span>surp/best-coding <b>$0.034</b> ↑</span><i>│</i>
+        <span>usdc/base <b>$1.00</b></span><i>│</i>
+        <span>tps <b>847</b> ↑</span><i>│</i>
+        <span>ttft <b>120ms</b> ↓</span><i>│</i>
+        <span>cache hit <b>34%</b> ↑</span><i>│</i>
+        <span>models live <b>1,204</b></span><i>│</i>
+        <span>srp pool <b>2.4M</b> ↑</span><i>│</i>
+      </div>
+    </div>
+    <div class="site-topbar">
+      <span class="site-breadcrumb">▸ __BREADCRUMB__</span>
+      <span class="site-actions">
+        <a href="/dashboard" class="hide-mobile">usage</a>
+        <a href="/app" class="account-link">▶ account</a>
+      </span>
+    </div>
+    <div class="site-content">
 <div class="container">
 <nav>
   <a href="/" class="brand" style="text-decoration:none;">surp.ivc.lol</a>
@@ -1734,6 +1895,9 @@ __CONTENT__
     <a href="/x402">what is x402</a> · <a href="/x402-llm-api">x402 LLM API</a> · <a href="/x402-gateway">x402 gateway</a> · <a href="/pay-per-request-llm-api">pay-per-request LLM API</a> · <a href="/cheapest-llm-api">cheapest LLM API</a> · <a href="/free-models">free AI models</a> · <a href="/health">health board</a> · <a href="/performance">verified TPS</a> · <a href="/app">login &amp; wallet</a> · <a href="/features">features &amp; updates</a> · <a href="/auction">cache auction</a> · <a href="/cache">cache-aware routing</a> · <a href="/proposal">reward proposal</a> · <a href="/token-gating">token-gating</a>
   </p>
 </footer>
+</div>
+    </div>
+  </div>
 </div>
 <script>
 // Announcement banner: dismiss persists in localStorage so a user who

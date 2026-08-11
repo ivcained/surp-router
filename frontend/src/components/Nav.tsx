@@ -68,7 +68,7 @@ export function Nav({
           <a href="/" style={{ textDecoration: 'none', fontWeight: 800, fontSize: 20, color: 'var(--green)', textShadow: 'var(--glow-green)' }}>
             surp
           </a>
-          <p className="faint" style={{ fontSize: 10, marginTop: 4 }}>surplus intelligence</p>
+          <p className="faint" style={{ fontSize: 10, marginTop: 4 }}>surplus intelligence router</p>
         </div>
 
         {/* Dashboard pages — account section */}
