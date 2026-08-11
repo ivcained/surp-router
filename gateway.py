@@ -2005,7 +2005,8 @@ var SB_SCROLL_KEY = "surp-sidebar-scroll";
   var restore = function() {
     if (!sb.isConnected) return;
     var max = sb.scrollHeight - sb.clientHeight;
-    sb.scrollTop = Math.min(target, Math.max(0, max));
+    // Clamp both bounds: target may be stale/negative if the menu shrank.
+    sb.scrollTop = Math.min(Math.max(0, target), max);
   };
   restore();
   window.setTimeout(restore, 100);
