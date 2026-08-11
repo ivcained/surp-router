@@ -34,7 +34,7 @@ class StreamSample:
     model: str
     source: str            # "request" (real traffic) | "benchmark"
     success: bool
-    ttft_ms: float | None  # request start -> first *content* token
+    ttft_ms: float | None  # request start -> first streamed data token (TTFT def. in Precision notes)
     gen_ms: float | None   # first token -> stream end
     total_ms: float
     completion_tokens: int # from usage, else ceil(chars/4) (flag estimated)
@@ -123,9 +123,8 @@ async def stream_with_metrics(upstream_resp, client_resp, *, provider, model):
 
 Precision notes:
 
-- TTFT must be stamped on the **first content/reasoning token**, not the first
-  HTTP byte — role-announce chunks (`delta: {"role":"assistant"}`) would
-  otherwise understate TTFT.
+- **TTFT definition:** wall-clock time from when the request is handed to the provider until the FIRST streamed SSE data token — the first bytes the user actually sees. It is stamped on the first data chunk, never the first HTTP byte; role-announce chunks (`delta: {"role":"assistant"}`) carry no data and would otherwise understate TTFT.
+- **reasoning_model caveat (documented limitation, not a code branch):** on reasoning models `reasoning_content` streams before `content`, so the first data token is reasoning text, not the final answer. TTFT therefore means "time to first visible token" as experienced by the user; the tap does NOT special-case reasoning vs. content.
 - TPS = `completion_tokens / (t_end − t_first_token)`; excluding TTFT from the
   denominator is what makes TTFT and TPS independently meaningful.
 - Fall back to `ceil(chars/4)` only when `usage` is missing, and mark
@@ -252,7 +251,14 @@ optional; a simpler guard is per-subscriber `maxlen=100` + drop-slow (above).
 If you chart at 1 Hz, also aggregate: keep `latest[key]` (instant) and let the
 frontend render at animation-frame cadence.
 
----
+### 2.2 Security & auth — the feed is token-gated
+
+`/api/metrics/stream` leaks per-request model/provider/TTFT/TPS and current load, so it is **never public**:
+
+- Every connection must present `Authorization: Bearer <SURP_METRICS_TOKEN>`. The presented token is compared with `SURP_METRICS_TOKEN` using a **constant-time compare** (`hmac.compare_digest`) to avoid timing attacks.
+- If `SURP_METRICS_TOKEN` is **unset**, the endpoint responds **404** — the route is effectively not attached, so the gateway does not even disclose that the feed exists.
+- The replay snapshot and the live subscription are both gated: reject the request (401) before `resp.prepare()` or any event is written.
+- Frontend note: `EventSource` cannot set an `Authorization` header, so the dashboard should either fetch a short-lived token first or read the stream with `fetch()` + SSE parsing and pass the header explicitly.
 
 ## 3. Frontend dashboard (React + TS)
 
@@ -422,7 +428,7 @@ class MetricWriter:
             if buf:
                 with conn:  # single transaction per batch
                     conn.executemany(
-                        """INSERT INTO requests
+                        """INSERT INTO metric_samples
                            (ts, provider, model, source, success, ttft_ms,
                             gen_ms, total_ms, prompt_tokens, completion_tokens,
                             tps, f1000_h, estimated, error)
@@ -434,19 +440,13 @@ class MetricWriter:
                     )
                 buf.clear()
 
-metric_writer = MetricWriter("metrics.db")
+metric_writer = MetricWriter(os.environ.get("SURP_METRICS_DB", "metrics.db"))  # config §5
 # gateway.py startup: asyncio.create_task(metric_writer.run())
 ```
 
-3. **Schema:** extend the existing `requests` table (`ALTER TABLE ... ADD COLUMN
-   gen_ms REAL, source TEXT DEFAULT 'request', estimated INTEGER DEFAULT 0,
-   f1000_h REAL`) — `ttft_ms`/`tps` columns already exist. Keep
-   `provider_health` per-request samples as-is for failure/latency; the tap's
-   DB write goes to this one hot table only.
-4. **Rollups, not reads of raw rows:** on the same flush cadence, update the
-   existing bucket/rollup tables (15-min and 5-min windows already exist) with
-   incremental aggregates, so `/api/benchmarks` and the dashboard cards read
-   small rollup rows instead of scanning the hot table. TTL pruning
+3. **Schema — a NEW separate DB, not the existing `requests` table.** (`SURP_METRICS_DB`, default `metrics.db`) with a `metric_samples` table (`ts, provider, model, source, success, ttft_ms, gen_ms, total_ms, prompt_tokens, completion_tokens, tps, f1000_h, estimated, error`). This keeps the maintainer's `stats.py`/`combos.db` untouched — zero migration risk to existing code and data. Keep `provider_health` per-request samples as-is for failure/latency; the tap's DB write goes to this one metrics DB only.
+4. **Rollups, not reads of raw rows:** on the same flush cadence, update the metrics DB's own rollup tables (`metric_rollups` (single table, keyed by bucket_ts, bucket_seconds, provider, model, success; 30s buckets, get_rollups(bucket_seconds, limit) answers coarser)) with
+   incremental aggregates, so the dashboard cards read small rollup rows instead of scanning `metric_samples`. TTL pruning
    (`delete_old`) moves into the writer task's idle time to avoid lock
    contention with flushes.
 5. **Why this avoids the bottlenecks:** WAL allows concurrent readers while
@@ -457,6 +457,16 @@ metric_writer = MetricWriter("metrics.db")
    untouched.
 
 ---
+
+## 5. Configuration
+
+Env vars (also documented in the root `README.md`):
+
+| Var | Default | Meaning |
+|---|---|---|
+| `SURP_METRICS_ENABLED` | `1` (ON) | Master switch for the whole metrics pipeline (tap, writer, SSE feed). Set `0` to disable without touching code. |
+| `SURP_METRICS_TOKEN` | unset | Bearer token required for `GET /api/metrics/stream` (§2.2). Unset ⇒ the endpoint returns 404. |
+| `SURP_METRICS_DB` | `metrics.db` | Path to the metrics SQLite DB holding `metric_samples` + rollups (§4). |
 
 ## Build order
 

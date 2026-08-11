@@ -68,9 +68,9 @@ import combo_resolver as cr
 COMBOS = cr.BUILTIN_COMBOS
 
 
-def _resolve(combo: str, markets: list[dict]):
+def _resolve(combo: str, markets: list[dict], strategy: Optional[str] = None):
     """Adapter kept for the existing call sites / tests."""
-    model, dbg, _price, _pool = cr.resolve(combo, markets)
+    model, dbg, _price, _pool = cr.resolve(combo, markets, strategy=strategy)
     return model, dbg
 
 
@@ -155,7 +155,7 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
             markets = await CACHE.get()
         except Exception as e:
             return web.json_response({"error": f"market data unavailable: {e}"}, status=502)
-        resolved_model, debug = _resolve(combo, markets)
+        resolved_model, debug = _resolve(combo, markets, strategy=payload.get("strategy"))
         if resolved_model is None:
             return web.json_response({"error": f"combo resolution failed: {debug}"}, status=404)
         log.info(debug)

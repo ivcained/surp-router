@@ -126,6 +126,23 @@ ng.DB_PATH = REWARD_DB
 NFT_GATE_ENABLED = bool(os.environ.get("SURP_GATE_CONTRACT", "").strip())
 NFT_GATE_DISCOUNT_BPS = int(os.environ.get("SURP_GATE_DISCOUNT_BPS", "0"))
 
+# ── Live TPS metrics (metrics_core / metrics_store / dashboard_tps) ─────────
+# metrics_store binds its DB path at import time → setdefault BEFORE importing.
+os.environ.setdefault("SURP_METRICS_DB", os.path.join(os.path.dirname(os.path.abspath(__file__)), "metrics.db"))
+METRICS_ENABLED = os.environ.get("SURP_METRICS_ENABLED", "1") not in ("", "0", "false", "False", "no")
+METRICS_TOKEN = os.environ.get("SURP_METRICS_TOKEN", "")
+import hmac  # noqa: E402
+import metrics_store  # noqa: E402
+from metrics_core import StreamSample, estimate_tokens, compute_tps, compute_f1000_h # noqa: E402
+from dashboard_tps import tps_dashboard_html  # noqa: E402
+metric_writer = metrics_store.metric_writer
+if METRICS_ENABLED:
+    logging.getLogger("surp.gateway").info(
+        "live metrics enabled%s",
+        "; SURP_METRICS_TOKEN NOT set — /api/metrics/stream will 404" if not METRICS_TOKEN else "",
+    )
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Facilitator + resource server (sync — runs in a thread off the event loop)
 # ──────────────────────────────────────────────────────────────────────────────
@@ -275,8 +292,8 @@ _is_text_llm = cr.is_text_llm
 _price = cr.price_of
 
 
-def resolve_combo(combo: str, markets: list[dict]):
-    return cr.resolve(combo, markets)
+def resolve_combo(combo: str, markets: list[dict], strategy: str | None = None):
+    return cr.resolve(combo, markets, strategy=strategy)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -911,6 +928,7 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
     if strict_mode:
         combo = combo[len("strict/"):]
     max_price = float(payload.pop("max_price_per_1m", 0) or 0)
+    strategy = payload.get("strategy")
     provider_hint = payload.pop("provider", None)
     bypass_cache = bool(payload.pop("surp_bypass_cache", False))
 
@@ -926,7 +944,7 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
         free_class = "coding" if combo == "free-coding" else "fast" if combo == "free-fast" else "chat"
         return await _serve_free_completion(request, payload, markets, client_ip, free_class=free_class)
 
-    live_model, debug, surplus_price, pool = resolve_combo(combo, markets)
+    live_model, debug, surplus_price, pool = resolve_combo(combo, markets, strategy=strategy)
     if live_model is None:
         return web.json_response({"error": f"combo resolution failed: {debug}"}, status=404)
 
@@ -1132,6 +1150,14 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
     # is preserved instead of resolving the combo a second time.
     fwd_payload = dict(payload)
     fwd_payload["model"] = resolved_model
+    if is_stream:
+        _so = fwd_payload.get("stream_options")
+        if _so is None:
+            fwd_payload["stream_options"] = {"include_usage": True}
+        elif not _so.get("include_usage"):
+            _sox = dict(_so)
+            _sox["include_usage"] = True
+            fwd_payload["stream_options"] = _sox
     fwd_raw = json.dumps(fwd_payload, separators=(",", ":"), ensure_ascii=False).encode()
     try:
         session = aiohttp.ClientSession()
@@ -1222,14 +1248,82 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
     out.headers["X-Surp-Cache"] = "BYPASS"
     out.headers["X-Surp-Routing"] = routing_reason
     await out.prepare(request)
+    # ── live metrics tap: per-request locals (best-effort only) ──
+    m_t0 = time.perf_counter()
+    m_ttft = None
+    m_content = ""
+    m_events = ""
+    m_usage = None
+    m_ok = True
     try:
         async for chunk in upstream.content.iter_chunked(4096):
             await out.write(chunk)
+            try:
+                m_events += chunk.decode("utf-8", "ignore")
+                while "\n" in m_events:
+                    _line, _, m_events = m_events.partition("\n")
+                    if not _line.startswith("data:"):
+                        continue
+                    _data = _line[5:].strip()
+                    if not _data or _data == "[DONE]":
+                        continue
+                    try:
+                        _ev = json.loads(_data)
+                    except Exception:
+                        continue
+                    if _ev.get("usage"):
+                        m_usage = _ev["usage"]
+                    for _ch in _ev.get("choices") or []:
+                        if not isinstance(_ch, dict):
+                            continue
+                        _dl = _ch.get("delta") or {}
+                        _co = _dl.get("content") or ""
+                        _rc = _dl.get("reasoning_content") or _dl.get("reasoning") or ""
+                        if (_co or _rc) and m_ttft is None:
+                            m_ttft = int((time.perf_counter() - m_t0) * 1000)
+                        if _co and len(m_content) < 200000:
+                            m_content += _co
+            except Exception:
+                pass  # metrics tap never breaks the paid stream
     except Exception as e:
         log.warning(f"stream pipe error: {e}")
+        m_ok = False
     finally:
         await session.close()
         await out.write_eof()
+        # ── enqueue a metrics sample (never forward errors to the client) ──
+        try:
+            m_total_ms = int((time.perf_counter() - m_t0) * 1000)
+            comp_tok = 0
+            prompt_tok = 0
+            est = 0
+            if isinstance(m_usage, dict):
+                try:
+                    comp_tok = int(m_usage.get("completion_tokens") or 0)
+                    prompt_tok = int(m_usage.get("prompt_tokens") or 0)
+                except Exception:
+                    pass
+            if not comp_tok:
+                comp_tok = int(estimate_tokens(m_content))
+                est = 1
+            gen_ms = (m_total_ms - m_ttft) if m_ttft is not None else m_total_ms
+            _tps = compute_tps(gen_ms, comp_tok)
+            _f1000 = compute_f1000_h(m_ttft, _tps)
+            _ss = StreamSample(provider="", model=resolved_model or "", source="request",
+                success=m_ok, ttft_ms=m_ttft, gen_ms=gen_ms,
+                total_ms=m_total_ms, completion_tokens=comp_tok,
+                prompt_tokens=prompt_tok, tps=_tps, f1000_h=_f1000, estimated=est)
+            metric_writer.enqueue(_ss)
+            if METRICS_ENABLED:
+                _feed_payload = json.dumps({
+                    "ts": int(_ss.ts * 1000), "model": _ss.model, "provider": _ss.provider,
+                    "ttft_ms": _ss.ttft_ms, "wall_ms": _ss.total_ms,
+                    "completion_tokens": _ss.completion_tokens, "tps": _ss.tps,
+                    "f1000": _ss.f1000_h, "source": _ss.source, "estimated": _ss.estimated
+                }, default=str)
+                _metric_broadcaster.publish("event: metric\ndata: " + _feed_payload + "\n\n")
+        except Exception:
+            log.debug("metrics sample enqueue failed", exc_info=True)
 
     st.log_request(combo, resolved_model, payer, required_microcents, tx_hash,
                    payment_method, tokens_in=0, tokens_out=expected_tokens, latency_ms=latency_ms)
@@ -1258,7 +1352,14 @@ async def page_status(request: web.Request) -> web.Response:
 
 
 async def page_dashboard(request: web.Request) -> web.Response:
-    html = _render_html(_DASHBOARD_CONTENT, "/dashboard")
+    # Live TPS metrics are merged INTO this existing dashboard page: the
+    # section from dashboard_tps.tps_dashboard_html() is appended to
+    # _DASHBOARD_CONTENT and renders 3 headline cards (TTFT / generation TPS /
+    # F1000), a per-model table, and a TPS sparkline. It opens an SSE stream to
+    # /api/metrics/stream (Bearer-gated by SURP_METRICS_TOKEN — see
+    # api_metrics_stream); when no token is configured it renders a muted
+    # "metrics feed disabled" card. See docs/proposals/tps-live-metrics/README.md.
+    html = _render_html(_DASHBOARD_CONTENT + tps_dashboard_html(METRICS_TOKEN), "/dashboard")
     return web.Response(text=html, content_type="text/html")
 
 
@@ -3252,9 +3353,113 @@ async def page_404(request: web.Request) -> web.Response:
     return web.Response(text=html, content_type="text/html", status=404)
 
 
+# ── Live metrics SSE broadcast (pattern: docs/proposals/tps-live-metrics/snippets/metrics_feed.py) ──
+_METRIC_SUBS_MAX = 64
+_METRIC_DROP_AFTER_S = 4.0
+_METRIC_PING_S = 15.0
+
+
+class _MetricsBroadcaster:
+    """Per-connection queue fan-out; slow/unread subscribers are dropped."""
+
+    def __init__(self) -> None:
+        self._subs = []
+
+    async def subscribe(self):
+        q = asyncio.Queue(maxsize=128)
+        last_seen = [time.monotonic()]
+        self._subs.append((q, last_seen))
+        try:
+            while True:
+                try:
+                    item = await asyncio.wait_for(q.get(), timeout=_METRIC_PING_S)
+                except asyncio.TimeoutError:
+                    yield ": ping\n\n"
+                else:
+                    last_seen[0] = time.monotonic()
+                    yield item
+        finally:
+            self.unsubscribe(q, last_seen)
+
+    def unsubscribe(self, q, last_seen):
+        try:
+            self._subs.remove((q, last_seen))
+        except ValueError:
+            pass
+
+    def publish(self, payload: str) -> None:
+        now = time.monotonic()
+        keep = []
+        for q, last_seen in self._subs:
+            if (now - last_seen[0]) > _METRIC_DROP_AFTER_S or q.full():
+                continue  # drop slow / full subscriber
+            try:
+                q.put_nowait(payload)
+            except asyncio.QueueFull:
+                continue
+            keep.append((q, last_seen))
+        self._subs = keep[:_METRIC_SUBS_MAX]
+
+
+_metric_broadcaster = _MetricsBroadcaster()
+
+
+async def _metrics_writer_loop(app: web.Application) -> None:
+    """Start the metrics writer bound to the app loop (gateway has no other
+    background asyncio tasks of its own — startup hook is the anchor point)."""
+    if not METRICS_ENABLED:
+        return
+    app["metrics_task"] = asyncio.create_task(metric_writer.run())
+
+
+async def _metrics_writer_stop(app: web.Application) -> None:
+    t = app.get("metrics_task")
+    if t is None:
+        return
+    t.cancel()
+    try:
+        await t
+    except (asyncio.CancelledError, Exception):
+        pass
+
+
+async def api_metrics_stream(request: web.Request) -> web.StreamResponse:
+    """SSE live-metrics feed. 404 unless enabled + token set; Bearer-matched."""
+    if not METRICS_ENABLED or not METRICS_TOKEN:
+        raise web.HTTPNotFound()
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        raise web.HTTPNotFound()
+    tok = auth[len("Bearer "):].strip()
+    if not hmac.compare_digest(tok, METRICS_TOKEN):
+        raise web.HTTPNotFound()
+    resp = web.StreamResponse(
+        status=200,
+        headers={
+            "content-type": "text/event-stream",
+            "cache-control": "no-cache",
+            "x-accel-buffering": "no",
+        },
+    )
+    await resp.prepare(request)
+    sub = _metric_broadcaster.subscribe()
+    try:
+        async for item in sub:
+            try:
+                await resp.write(item.encode("utf-8"))
+            except Exception:
+                break  # client gone
+    finally:
+        await sub.aclose()
+    return resp
+
+
 def build_app() -> web.Application:
     app = web.Application()
+    app.on_startup.append(_metrics_writer_loop)
+    app.on_cleanup.append(_metrics_writer_stop)
     app.router.add_get("/", page_home)
+    app.router.add_get("/api/metrics/stream", api_metrics_stream)
     app.router.add_get("/docs", page_docs)
     app.router.add_get("/about", page_about)
     app.router.add_get("/status", page_status)
