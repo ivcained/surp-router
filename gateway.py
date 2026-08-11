@@ -50,6 +50,7 @@ import model_benchmarks as mb
 import performance_page as pp
 import user_accounts as ua
 import value_index as vi
+import studio as st
 
 # ──────────────────────────────────────────────────────────────────────────────
 # x402 imports
@@ -3609,6 +3610,184 @@ model class default so partial submissions still count.</p>
     return web.Response(text=html, content_type="text/html")
 
 
+# ─── Studio — all-in-one AI creative workspace ──────────────────────────────
+
+
+async def api_studio_status(request: web.Request) -> web.Response:
+    """GET /api/studio/status — provider status for the Studio UI banner."""
+    return web.json_response(st.provider_status())
+
+
+async def api_studio_generate(request: web.Request) -> web.Response:
+    """POST /api/studio/generate — text-to-image, image-to-image, video.
+
+    Body: {kind: 'image'|'video', mode: 't2i'|'i2i'|'t2v'|'i2v',
+           prompt: str, image_url?: str, params?: {steps, guidance, seed,
+           aspect, strength, video_model}}
+    """
+    user_id = _auth_user(request)
+    if not user_id:
+        return web.json_response({"error": "unauthorized"}, status=401)
+    try:
+        body = await request.json()
+    except Exception:
+        return web.json_response({"error": "invalid JSON"}, status=400)
+    kind = str(body.get("kind", "image"))
+    mode = str(body.get("mode", "t2i"))
+    prompt = str(body.get("prompt", "")).strip()
+    if kind not in ("image", "video"):
+        return web.json_response({"error": "kind must be image or video"}, status=400)
+    if mode not in ("t2i", "i2i", "t2v", "i2v"):
+        return web.json_response({"error": "mode must be t2i/i2i/t2v/i2v"}, status=400)
+    if not prompt:
+        return web.json_response({"error": "prompt required"}, status=400)
+    if mode in ("i2i", "i2v") and not body.get("image_url"):
+        return web.json_response({"error": "image_url required for image-to-* modes"}, status=400)
+    try:
+        res = await st.generate(
+            kind, mode, prompt,
+            image_url=str(body.get("image_url", "")),
+            params=body.get("params") or {},
+        )
+    except Exception as e:
+        log.error(f"studio generate failed: {e}")
+        return web.json_response({"error": f"generation failed: {e}"}, status=500)
+    creation = st.create_creation(
+        user_id, kind, mode, prompt,
+        res["media_url"], res.get("thumb_url", ""),
+        params=body.get("params") or {},
+    )
+    creation["provider"] = res["provider"]
+    return web.json_response(creation)
+
+
+async def api_studio_upload(request: web.Request) -> web.Response:
+    """POST /api/studio/upload — accept a multipart image, store privately."""
+    user_id = _auth_user(request)
+    if not user_id:
+        return web.json_response({"error": "unauthorized"}, status=401)
+    reader = await request.multipart()
+    field = await reader.next()
+    if field is None or field.name != "image":
+        return web.json_response({"error": "multipart field 'image' required"}, status=400)
+    data = await field.read()
+    if not data:
+        return web.json_response({"error": "empty upload"}, status=400)
+    if len(data) > 15 * 1024 * 1024:
+        return web.json_response({"error": "image too large (15MB max)"}, status=413)
+    # Sniff content type from filename
+    fname = (field.filename or "").lower()
+    ext = ".png" if fname.endswith(".png") else ".jpg" if fname.endswith(".jpg") or fname.endswith(".jpeg") else ".png"
+    url = st._save_media(data, ext)
+    return web.json_response({"url": url})
+
+
+async def api_studio_creations(request: web.Request) -> web.Response:
+    """GET /api/studio/creations — the user's private gallery."""
+    user_id = _auth_user(request)
+    if not user_id:
+        return web.json_response({"error": "unauthorized"}, status=401)
+    limit = int(request.query.get("limit", "60") or 60)
+    return web.json_response({"creations": st.list_creations(user_id, limit)})
+
+
+async def api_studio_share(request: web.Request) -> web.Response:
+    """POST /api/studio/share/{id} — toggle public sharing of a creation.
+
+    Body: {is_public: bool}
+    """
+    user_id = _auth_user(request)
+    if not user_id:
+        return web.json_response({"error": "unauthorized"}, status=401)
+    cid = int(request.match_info.get("id", "0"))
+    try:
+        body = await request.json()
+        is_public = bool(body.get("is_public", False))
+    except Exception:
+        return web.json_response({"error": "invalid JSON"}, status=400)
+    rec = st.set_public(cid, user_id, is_public)
+    if rec is None:
+        return web.json_response({"error": "not found"}, status=404)
+    return web.json_response(rec)
+
+
+async def api_studio_delete(request: web.Request) -> web.Response:
+    """DELETE /api/studio/creations/{id} — remove a creation."""
+    user_id = _auth_user(request)
+    if not user_id:
+        return web.json_response({"error": "unauthorized"}, status=401)
+    cid = int(request.match_info.get("id", "0"))
+    if not st.delete_creation(cid, user_id):
+        return web.json_response({"error": "not found"}, status=404)
+    return web.json_response({"ok": True})
+
+
+async def api_studio_chat(request: web.Request) -> web.Response:
+    """POST /api/studio/chat — chat via surp's own gateway free tier.
+
+    The studio chat is treasury-sponsored (surp/free) so users can chat
+    without a wallet. Body: {messages: [{role, content}], model?: str}
+    """
+    user_id = _auth_user(request)
+    if not user_id:
+        return web.json_response({"error": "unauthorized"}, status=401)
+    try:
+        body = await request.json()
+    except Exception:
+        return web.json_response({"error": "invalid JSON"}, status=400)
+    messages = body.get("messages") or []
+    if not messages or not isinstance(messages, list):
+        return web.json_response({"error": "messages required"}, status=400)
+    client_ip = request.headers.get("X-Real-IP") or request.remote or "studio"
+    payload = {
+        "model": "surp/free",
+        "messages": messages,
+        "max_tokens": min(int(body.get("max_tokens", 500) or 500), 1000),
+        "stream": False,
+    }
+    try:
+        markets = await GCACHE.get()
+    except Exception:
+        markets = []
+    try:
+        resp = await _serve_free_completion(request, payload, markets, client_ip, free_class="chat")
+        # _serve_free_completion returns an aiohttp Response — read its body.
+        data = json.loads(resp.body) if isinstance(resp.body, (bytes, str)) else resp.body
+        return web.json_response(data)
+    except Exception as e:
+        log.error(f"studio chat failed: {e}")
+        return web.json_response({"error": f"chat failed: {e}"}, status=502)
+
+
+async def studio_media(request: web.Request) -> web.Response:
+    """GET /studio/media/{name} — serve a stored creation (private-by-default)."""
+    name = request.match_info.get("name", "")
+    data = st._load_media(name)
+    if data is None:
+        return web.Response(status=404)
+    ct = "image/svg+xml" if name.endswith(".svg") else "image/png" if name.endswith(".png") else "image/jpeg"
+    return web.Response(body=data, content_type=ct, headers={"Cache-Control": "private, max-age=3600"})
+
+
+async def page_studio_share(request: web.Request) -> web.Response:
+    """GET /studio/share/{token} — public view of a shared creation."""
+    token = request.match_info.get("token", "")
+    rec = st.get_public(token)
+    if rec is None:
+        content = "<h1>Not found</h1><p class='dim'>This creation is private or does not exist.</p>"
+    else:
+        kind = rec["kind"]
+        media = f"<video src='{rec['media_url']}' controls style='max-width:100%;border-radius:8px;'></video>" if kind == "video" else f"<img src='{rec['media_url']}' style='max-width:100%;border-radius:8px;' alt=''/>"
+        content = f"""
+<h1>shared creation</h1>
+<p class="dim">{rec['mode'].upper()} · {rec['kind']}</p>
+{media}
+<pre>{rec['prompt']}</pre>
+"""
+    html = _render_html(content, "/studio/share")
+    return web.Response(text=html, content_type="text/html")
+
+
 async def page_app(request: web.Request) -> web.Response:
     """React SPA for user login + embedded wallet creation (Privy)."""
     index_path = os.path.join(os.path.dirname(__file__), "frontend", "dist", "index.html")
@@ -3969,6 +4148,16 @@ def build_app() -> web.Application:
     app.router.add_get("/svi", page_svi)
     app.router.add_get("/api/svi", api_svi)
     app.router.add_post("/api/svi/benchmark", api_svi_submit)
+    # Studio — all-in-one AI creative workspace
+    app.router.add_get("/api/studio/status", api_studio_status)
+    app.router.add_post("/api/studio/generate", api_studio_generate)
+    app.router.add_post("/api/studio/upload", api_studio_upload)
+    app.router.add_get("/api/studio/creations", api_studio_creations)
+    app.router.add_post("/api/studio/share/{id}", api_studio_share)
+    app.router.add_delete("/api/studio/creations/{id}", api_studio_delete)
+    app.router.add_post("/api/studio/chat", api_studio_chat)
+    app.router.add_get("/studio/media/{name}", studio_media)
+    app.router.add_get("/studio/share/{token}", page_studio_share)
     app.router.add_get("/app", page_app)
     app.router.add_get("/app/assets/{path:.*}", app_static)
     # User account API (Privy-authenticated)

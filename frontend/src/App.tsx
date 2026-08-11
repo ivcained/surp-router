@@ -8,9 +8,10 @@ import {
   WalletPage,
   LoginScreen,
   Nav,
+  Studio,
 } from './components'
 
-export type Page = 'dashboard' | 'wallet' | 'apikeys' | 'activity' | 'usage'
+export type Page = 'dashboard' | 'wallet' | 'apikeys' | 'activity' | 'usage' | 'studio'
 
 export default function App() {
   const { ready, authenticated, user, logout, login, getAccessToken } = usePrivy()
@@ -78,6 +79,7 @@ export default function App() {
       {page === 'apikeys' && <ApiKeys />}
       {page === 'activity' && <Activity />}
       {page === 'usage' && <Usage />}
+      {page === 'studio' && <Studio />}
     </>
   )
 

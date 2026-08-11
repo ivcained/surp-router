@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 
 const DASH_PAGES: { id: Page, label: string, icon: string }[] = [
   { id: 'dashboard', label: 'overview', icon: '◆' },
+  { id: 'studio', label: 'studio', icon: '✦' },
   { id: 'wallet', label: 'wallet', icon: '◈' },
   { id: 'apikeys', label: 'api keys', icon: '🔑' },
   { id: 'activity', label: 'activity', icon: '◉' },

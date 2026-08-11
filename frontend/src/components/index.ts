@@ -1,5 +1,6 @@
 export { LoginScreen } from './LoginScreen'
 export { Nav } from './Nav'
+export { Studio } from './Studio'
 export { Dashboard } from './Dashboard'
 export { WalletPage } from './WalletPage'
 export { ApiKeys } from './ApiKeys'
