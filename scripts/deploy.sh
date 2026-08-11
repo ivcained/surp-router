@@ -44,8 +44,15 @@ if [ "$PREV" = "$NEW" ]; then
 fi
 log "pulled: ${NEW:0:7} (was ${PREV:0:7})"
 
-# Test gate — fail fast, don't touch running services
+# Dependency + test gate — fail fast, don't touch running services
 . venv/bin/activate
+if [ -f requirements.txt ]; then
+    if ! python -m pip install -r requirements.txt >>"$LOG" 2>&1; then
+        log "✗ DEPENDENCY INSTALL FAILED — rolling back to ${PREV:0:7}"
+        git reset --hard "$PREV" >>"$LOG" 2>&1
+        exit 1
+    fi
+fi
 if ! PYTHONPATH=. pytest tests/ -q >>"$LOG" 2>&1; then
     log "✗ TESTS FAILED — rolling back to ${PREV:0:7}"
     git reset --hard "$PREV" >>"$LOG" 2>&1
