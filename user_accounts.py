@@ -395,11 +395,25 @@ def _get_privy_access_token(auth_header: str) -> str:
     return auth_header.strip()
 
 
-def verify_privy_token(access_token: str) -> dict | None:
-    """Verify a Privy access token via the Privy REST API.
+def _privy_headers(app_id: str, app_secret: str) -> dict[str, str]:
+    """Build authenticated headers for Privy's server API."""
+    import base64
 
-    Returns the user object (with id, wallet, email) or None if invalid.
-    Uses a User-Agent header to avoid Cloudflare 1010 browser-signature blocks.
+    basic = base64.b64encode(f"{app_id}:{app_secret}".encode()).decode()
+    return {
+        "User-Agent": "surp-gateway/1.0",
+        "Authorization": f"Basic {basic}",
+        "privy-app-id": app_id,
+        "Content-Type": "application/json",
+    }
+
+
+def verify_privy_token(access_token: str) -> dict | None:
+    """Verify a Privy access-token JWT and fetch its authenticated user.
+
+    Privy access tokens are ES256 JWTs. This verifies the signature against the
+    app's authenticated JWKS endpoint, including issuer, audience, and expiry,
+    then fetches the user identified by the verified ``sub`` claim.
     """
     if not access_token:
         return None
@@ -408,28 +422,50 @@ def verify_privy_token(access_token: str) -> dict | None:
     if not app_id or not app_secret:
         log.error("PRIVY_APP_ID/PRIVY_APP_SECRET not set")
         return None
-    import urllib.request
-    import base64
-    req = urllib.request.Request(
-        "https://auth.privy.io/api/v1/users",
-        # User-Agent is required — without it, Cloudflare returns 1010
-        # (browser-signature block) and the request fails before reaching Privy.
-        headers={
-            "User-Agent": "surp-gateway/1.0",
-            "Authorization": "Basic "
-            + base64.b64encode(f"{app_id}:{app_secret}".encode()).decode(),
-            "privy-app-id": app_id,
-            "Content-Type": "application/json",
-        },
-        method="POST",
-        data=json.dumps({"access_token": access_token}).encode(),
-    )
+
     try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read())
-        return data
-    except Exception as e:
-        log.error(f"verify_privy_token failed: {e}")
+        import jwt
+        import urllib.parse
+        import urllib.request
+
+        headers = _privy_headers(app_id, app_secret)
+        jwks_url = f"https://api.privy.io/v1/apps/{app_id}/jwks.json"
+        jwks_client = jwt.PyJWKClient(
+            jwks_url,
+            headers=headers,
+            cache_jwk_set=True,
+            lifespan=3600,
+        )
+        signing_key = jwks_client.get_signing_key_from_jwt(access_token)
+        claims = jwt.decode(
+            access_token,
+            signing_key.key,
+            algorithms=["ES256"],
+            audience=app_id,
+            issuer="privy.io",
+            options={"require": ["sub", "aud", "iss", "exp"]},
+        )
+        user_id = str(claims["sub"])
+
+        # The access token intentionally contains authentication claims only.
+        # Fetch the verified user's linked accounts to discover their embedded
+        # wallet and email. Never trust a client-supplied user ID.
+        encoded_user_id = urllib.parse.quote(user_id, safe="")
+        request = urllib.request.Request(
+            f"https://api.privy.io/v1/users/{encoded_user_id}",
+            headers=headers,
+            method="GET",
+        )
+        with urllib.request.urlopen(request, timeout=10) as response:
+            user = json.loads(response.read())
+
+        # Normalize SDK/API naming while retaining the full user payload.
+        user.setdefault("id", user_id)
+        if "linked_accounts" in user and "linkedAccounts" not in user:
+            user["linkedAccounts"] = user["linked_accounts"]
+        return user
+    except Exception as exc:
+        log.error("verify_privy_token failed: %s: %s", type(exc).__name__, exc)
         return None
 
 
