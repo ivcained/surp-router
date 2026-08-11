@@ -1722,8 +1722,22 @@ _HTML_BASE = r"""<!DOCTYPE html>
     color: var(--accent); background: rgba(0,255,156,.06);
     border-left-color: var(--accent); text-decoration: none;
   }
+  /* Selected page — phosphor glow so the active menu item "lights up". */
+  .site-menu a.active {
+    color: var(--accent);
+    background: linear-gradient(90deg, rgba(0,255,156,.14), rgba(0,255,156,.03));
+    border-left-color: var(--accent);
+    font-weight: 700;
+    box-shadow: inset 0 0 12px rgba(0,255,156,.12), 0 0 10px rgba(0,255,156,.18);
+    text-shadow: 0 0 8px rgba(0,255,156,.55);
+  }
   .site-menu a.docs-link {
     color: var(--accent); font-weight: 700; border-left-color: var(--accent);
+  }
+  .site-menu a.docs-link.active {
+    background: linear-gradient(90deg, rgba(0,255,156,.16), rgba(0,255,156,.04));
+    box-shadow: inset 0 0 14px rgba(0,255,156,.14), 0 0 12px rgba(0,255,156,.22);
+    text-shadow: 0 0 8px rgba(0,255,156,.6);
   }
   .site-system {
     margin-top: auto; padding: 13px 20px; border-top: 1px solid var(--border);
@@ -1976,6 +1990,17 @@ document.addEventListener("keydown", function(e) {
 document.addEventListener("DOMContentLoaded", function() {
   var links = document.querySelectorAll(".site-menu a");
   links.forEach(function(a) { a.addEventListener("click", closeSidebar); });
+
+  // Mark the current page's menu link as active so it lights up with a glow.
+  var current = document.body.getAttribute("data-active-path")
+                 || window.location.pathname;
+  if (current === "" ) current = "/";
+  links.forEach(function(a) {
+    var href = a.getAttribute("href") || "/";
+    if (href === current) {
+      a.classList.add("active");
+    }
+  });
 });
 </script>
 </body>

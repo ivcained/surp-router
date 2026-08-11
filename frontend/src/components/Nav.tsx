@@ -77,6 +77,11 @@ export function Nav({
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false)
 
+  // Current path — used to light up the matching site link (explore section).
+  // The account pages (overview/wallet/etc.) are SPA state, highlighted by `page`.
+  const currentPathname = (typeof window !== 'undefined' ? window.location.pathname : '/').replace(/\/$/, '') || '/'
+  const isActivePath = (href: string) => (href === '/' ? currentPathname === '/' : currentPathname.startsWith(href))
+
   // Close drawer on Escape
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setDrawerOpen(false) }
@@ -128,12 +133,14 @@ export function Nav({
               onClick={() => setPage(p.id)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left',
-                background: page === p.id ? 'rgba(0,255,156,0.06)' : 'transparent',
+                background: page === p.id ? 'linear-gradient(90deg, rgba(0,255,156,0.14), rgba(0,255,156,0.03))' : 'transparent',
                 color: page === p.id ? 'var(--green)' : 'var(--text-dim)',
                 border: 'none', borderLeft: page === p.id ? '2px solid var(--green)' : '2px solid transparent',
                 padding: '9px 12px', borderRadius: 4, fontFamily: 'var(--font-mono)',
                 fontSize: 13, cursor: 'pointer', marginBottom: 2,
-                textShadow: page === p.id ? 'var(--glow-green)' : 'none',
+                textShadow: page === p.id ? '0 0 8px rgba(0,255,156,0.55)' : 'none',
+                boxShadow: page === p.id ? 'inset 0 0 12px rgba(0,255,156,0.12), 0 0 10px rgba(0,255,156,0.18)' : 'none',
+                fontWeight: page === p.id ? 700 : 400,
               }}
             >
               <span style={{ width: 14, textAlign: 'center', opacity: 0.7 }}>{p.icon}</span>
@@ -152,24 +159,30 @@ export function Nav({
               }}>
                 ▸ {section.label}
               </p>
-              {section.pages.map(p => (
+              {section.pages.map(p => {
+                const isActive = isActivePath(p.path)
+                return (
                 <a
                   key={p.path}
                   href={p.path}
+                  className={isActive ? 'nav-item-active' : ''}
                   style={{
                     display: 'block',
-                    color: p.emphasize ? 'var(--green)' : 'var(--text-dim)',
-                    fontWeight: p.emphasize ? 700 : 400,
+                    color: isActive ? 'var(--green)' : p.emphasize ? 'var(--green)' : 'var(--text-dim)',
+                    fontWeight: isActive ? 700 : p.emphasize ? 700 : 400,
                     textDecoration: 'none',
-                    borderLeft: p.emphasize ? '2px solid var(--green)' : '2px solid transparent',
+                    borderLeft: isActive || p.emphasize ? '2px solid var(--green)' : '2px solid transparent',
                     padding: '7px 12px', borderRadius: 4, fontFamily: 'var(--font-mono)',
                     fontSize: 13, marginBottom: 2,
+                    background: isActive ? 'linear-gradient(90deg, rgba(0,255,156,0.14), rgba(0,255,156,0.03))' : 'transparent',
+                    boxShadow: isActive ? 'inset 0 0 12px rgba(0,255,156,0.12), 0 0 10px rgba(0,255,156,0.18)' : 'none',
+                    textShadow: isActive ? '0 0 8px rgba(0,255,156,0.55)' : 'none',
                   }}
                 >
                   {p.label}
                   {p.emphasize && <span style={{ float: 'right', opacity: 0.7 }}>★</span>}
                 </a>
-              ))}
+              )})}
             </div>
           ))}
         </div>
