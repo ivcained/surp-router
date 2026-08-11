@@ -49,6 +49,7 @@ import auction_page as ap
 import model_benchmarks as mb
 import performance_page as pp
 import user_accounts as ua
+import value_index as vi
 
 # ──────────────────────────────────────────────────────────────────────────────
 # x402 imports
@@ -1854,6 +1855,7 @@ _HTML_BASE = r"""<!DOCTYPE html>
       <a href="/status">status</a>
       <a href="/health">health board</a>
       <a href="/performance">verified tps</a>
+      <a href="/svi">value index</a>
       <a href="/features">updates</a>
     </nav>
     <div class="site-system"><span class="site-system-dot"></span>all systems nominal</div>
@@ -3456,6 +3458,99 @@ async def page_performance(request: web.Request) -> web.Response:
     return web.Response(text=html, content_type="text/html")
 
 
+# ─── Surp Value Index (SVI) ────────────────────────────────────────────────
+
+
+async def _svi_ranked() -> list[dict]:
+    """Compute the live SVI leaderboard from market + benchmark data."""
+    try:
+        markets = await GCACHE.get()
+    except Exception:
+        markets = []
+    market_models = [
+        {"model": m.get("model"), "price_usd_per_1m": cr.usd_per_1m(m)}
+        for m in markets if isinstance(m, dict) and m.get("model")
+    ]
+    benchmarked = mb.ranked()
+    return vi.rank(market_models, benchmarked)
+
+
+async def api_svi(request: web.Request) -> web.Response:
+    """GET /api/svi — Surp Value Index leaderboard (cost×intel×speed)."""
+    rows = await _svi_ranked()
+    return web.json_response({
+        "weights": {"cost": vi.W_COST, "intelligence": vi.W_INTEL, "speed": vi.W_SPEED},
+        "count": len(rows),
+        "ranked": rows,
+    })
+
+
+async def api_svi_submit(request: web.Request) -> web.Response:
+    """POST /api/svi/benchmark — submit a model benchmark (competitive surface).
+
+    Body: {model, mmlu?, gpqa?, humaneval?, ifeval?, submitter?}
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        return web.json_response({"error": "invalid JSON"}, status=400)
+    model = str(body.get("model", "")).strip()
+    if not model:
+        return web.json_response({"error": "model required"}, status=400)
+    res = vi.submit_benchmark(
+        model,
+        mmlu=body.get("mmlu"),
+        gpqa=body.get("gpqa"),
+        humaneval=body.get("humaneval"),
+        ifeval=body.get("ifeval"),
+        submitter=str(body.get("submitter", "")),
+    )
+    return web.json_response(res)
+
+
+async def page_svi(request: web.Request) -> web.Response:
+    """SVI leaderboard page — the single composite value index."""
+    rows = await _svi_ranked()
+    top = rows[:20]
+    rows_html = ""
+    for i, r in enumerate(top, 1):
+        rows_html += (
+            f"<tr><td>{i}</td>"
+            f"<td class='model'>{r['model']}</td>"
+            f"<td class='num'>{r['svi']}</td>"
+            f"<td class='dim'>{r['cost_score']}</td>"
+            f"<td class='dim'>{r['intelligence_score']}</td>"
+            f"<td class='dim'>{r['speed_score']}</td>"
+            f"<td class='price'>${r['price_usd_per_1m']:.4f}/M</td>"
+            f"<td class='dim'>{r['p50_tps']:.1f} tps</td></tr>"
+        )
+    if not rows_html:
+        rows_html = "<tr><td colspan='8' class='err'>No models with verified speed yet — run benchmarks first.</td></tr>"
+    content = f"""
+<h1>Surp Value Index (SVI)</h1>
+<p class="dim prompt">the one number: cost × intelligence × speed</p>
+<p>A single composite score per model — weighted geometric mean of three
+normalized sub-scores. Buyers optimize for the highest SVI in class;
+suppliers climb the leaderboard by submitting verified benchmark results
+or improving real served TPS.</p>
+<h2>## weights</h2>
+<p>cost <b>{int(vi.W_COST*100)}%</b> · intelligence <b>{int(vi.W_INTEL*100)}%</b> · speed <b>{int(vi.W_SPEED*100)}%</b></p>
+<h2>## leaderboard</h2>
+<table>
+<tr><th>#</th><th>model</th><th>SVI</th><th>cost</th><th>intel</th><th>speed</th><th>price</th><th>tps</th></tr>
+{rows_html}
+</table>
+<h2>## submit a benchmark</h2>
+<pre>curl -X POST https://surp.ivc.lol/api/svi/benchmark \\
+  -H "Content-Type: application/json" \\
+  -d '{{"model":"my-quantized-model","mmlu":88,"humaneval":92,"submitter":"you"}}'</pre>
+<p class="dim">Verified submissions move the leaderboard. Missing axes fall back to the
+model class default so partial submissions still count.</p>
+"""
+    html = _render_html(content, "/svi")
+    return web.Response(text=html, content_type="text/html")
+
+
 async def page_app(request: web.Request) -> web.Response:
     """React SPA for user login + embedded wallet creation (Privy)."""
     index_path = os.path.join(os.path.dirname(__file__), "frontend", "dist", "index.html")
@@ -3751,7 +3846,7 @@ async def serve_robots(request: web.Request) -> web.Response:
 async def serve_sitemap(request: web.Request) -> web.Response:
     import time as _time
     lastmod = _time.strftime("%Y-%m-%d", _time.gmtime())
-    pages = ["/", "/docs", "/connect", "/builder", "/about", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/models", "/free-models", "/health", "/performance", "/features", "/auction", "/app", "/cache", "/proposal", "/token-gating", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api"]
+    pages = ["/", "/docs", "/connect", "/builder", "/about", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/token-gating", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api"]
     urls = ""
     for p in pages:
         priority = "1.0" if p == "/" else "0.8" if p in ("/docs", "/connect") else "0.6"
@@ -3813,6 +3908,9 @@ def build_app() -> web.Application:
     app.router.add_get("/features", page_features)
     app.router.add_get("/auction", page_auction)
     app.router.add_get("/performance", page_performance)
+    app.router.add_get("/svi", page_svi)
+    app.router.add_get("/api/svi", api_svi)
+    app.router.add_post("/api/svi/benchmark", api_svi_submit)
     app.router.add_get("/app", page_app)
     app.router.add_get("/app/assets/{path:.*}", app_static)
     # User account API (Privy-authenticated)

@@ -46,6 +46,7 @@ const SITE_SECTIONS: { label: string, pages: { path: string, label: string, emph
       { path: '/status', label: 'status' },
       { path: '/health', label: 'health board' },
       { path: '/performance', label: 'verified tps' },
+      { path: '/svi', label: 'value index' },
       { path: '/features', label: 'updates' },
     ],
   },
