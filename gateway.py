@@ -1764,7 +1764,10 @@ _HTML_BASE = r"""<!DOCTYPE html>
     text-shadow: 0 0 8px rgba(0,255,156,.45);
   }
   .site-content { max-width: 1200px; margin: 0 auto; padding: 22px 24px 60px; }
-  .site-content > nav { display: none; }
+  /* Hide the legacy inline nav — the universal sidebar + mobile drawer
+     handle navigation on all screen sizes. The old <nav> lives inside
+     .container (a descendant), so use the descendant selector. */
+  .site-content nav { display: none; }
   .site-content .announce { margin-top: 0; }
   .site-content h1 { color: var(--accent); text-shadow: 0 0 10px rgba(0,255,156,.22); }
   .site-content .card { border-radius: 6px; transition: border-color .2s, box-shadow .2s; }
@@ -1796,8 +1799,6 @@ _HTML_BASE = r"""<!DOCTYPE html>
     .site-content { padding: 16px 12px 40px; }
     .site-actions .hide-mobile { display: none; }
     .market-track { animation-duration: 30s; }
-    .site-content > nav { display: flex; flex-direction: column; align-items: stretch; gap: 8px; padding: 12px 0; margin-bottom: 16px; }
-    .site-content > nav ul { justify-content: center; gap: 10px; }
   }
 </style>
 </head>
