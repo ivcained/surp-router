@@ -390,6 +390,14 @@ function ImagePane({ authFetch, wallet, onDone }: {
           setBusy(false)
           return
         }
+        // Warn before signing if the wallet balance can't cover the price.
+        const priceNum = parseFloat(String(data1.price_usd || '0').replace(/[^0-9.]/g, ''))
+        const balNum = typeof data1.balance_usdc === 'number' ? data1.balance_usdc : null
+        if (balNum !== null && balNum < priceNum) {
+          setErr(`⚠ insufficient balance — you have $${balNum.toFixed(4)} USDC, this generation costs ${data1.price_usd}. Add USDC to your wallet (wallet tab) and try again.`)
+          setBusy(false)
+          return
+        }
         const res2 = await payAndRetry(authFetch, wallet, body, payHeader)
         const data2 = await res2.json()
         if (!res2.ok) {
@@ -502,6 +510,14 @@ function VideoPane({ authFetch, wallet, onDone }: {
         setQuote({ price_usd: data1.price_usd || '?', model: data1.model || videoModel })
         if (!wallet?.signTypedData) {
           setErr('connect your wallet to pay for generation')
+          setBusy(false)
+          return
+        }
+        // Warn before signing if the wallet balance can't cover the price.
+        const priceNum = parseFloat(String(data1.price_usd || '0').replace(/[^0-9.]/g, ''))
+        const balNum = typeof data1.balance_usdc === 'number' ? data1.balance_usdc : null
+        if (balNum !== null && balNum < priceNum) {
+          setErr(`⚠ insufficient balance — you have $${balNum.toFixed(4)} USDC, this generation costs ${data1.price_usd}. Add USDC to your wallet (wallet tab) and try again.`)
           setBusy(false)
           return
         }

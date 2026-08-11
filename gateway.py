@@ -3673,6 +3673,7 @@ async def api_studio_generate(request: web.Request) -> web.Response:
            prompt: str, image_url?: str, params?: {steps, guidance, seed,
            aspect, strength, image_model, video_model}}
     """
+    log = logging.getLogger("surp.gateway")
     user_id = _auth_user(request)
     if not user_id:
         return web.json_response({"error": "unauthorized"}, status=401)
@@ -3714,6 +3715,12 @@ async def api_studio_generate(request: web.Request) -> web.Response:
     if not payment_header:
         # ── Phase 1: quote + payment-required ──
         amount_atomic = str(int(price_usd * 1_000_000))
+        # Include the user's wallet balance so the UI can warn before signing.
+        try:
+            _bal = ua.get_user_balance(user_id)
+            _bal_usdc = round(int(_bal.get("usdc_atomic", 0)) / 1_000_000, 6)
+        except Exception:
+            _bal_usdc = None
         from x402.schemas.payments import PaymentRequirements
         from x402.http import encode_payment_required_header, PAYMENT_REQUIRED_HEADER
         req = PaymentRequirements(
@@ -3743,6 +3750,7 @@ async def api_studio_generate(request: web.Request) -> web.Response:
             "model": model,
             "surplus_price_usd": round(price_usd / (1 + st.STUDIO_MARKUP_BPS / 10_000.0), 6),
             "price_usd": f"${price_usd:.4f}",
+            "balance_usdc": _bal_usdc,
             "accepts": [{
                 "scheme": "exact",
                 "network": NETWORK,
@@ -3886,6 +3894,7 @@ async def api_studio_chat(request: web.Request) -> web.Response:
     without a wallet. Body: {messages: [{role, content}], model?: str}
     model accepts surp/free (default), surp/free-coding, surp/free-fast.
     """
+    log = logging.getLogger("surp.gateway")
     user_id = _auth_user(request)
     if not user_id:
         return web.json_response({"error": "unauthorized"}, status=401)
