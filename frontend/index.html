@@ -325,6 +325,15 @@
     }
     td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
     tr:hover { background: rgba(0,255,156,0.03); }
+    /* ── Dashboard top bar — responsive wallet/logout layout ──────────── */
+    .dash-topbar {
+      position: sticky; top: 0; z-index: 40;
+      background: rgba(0,0,0,0.9); border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 24px; backdrop-filter: blur(8px); gap: 12px;
+    }
+    .dash-actions { display: flex; align-items: center; gap: 8px; }
+
     /* ── Mobile responsive — dashboard sidebar becomes drawer ─────────── */
     @media (max-width: 900px) {
       aside {
@@ -340,8 +349,21 @@
       div[style*="margin-left: 240px"], div[style*="marginLeft: 240"] {
         margin-left: 0 !important;
       }
-      header {
-        padding: 9px 12px !important;
+      .dash-topbar {
+        flex-wrap: wrap; padding: 9px 12px; row-gap: 8px;
+      }
+      /* Wallet takes the full top row; logout drops to row 2, right-aligned */
+      .dash-actions {
+        flex-basis: 100%; justify-content: space-between;
+      }
+      .dash-wallet {
+        flex: 1; justify-content: center;
+      }
+      .dash-logout {
+        flex-shrink: 0;
+      }
+      .dash-breadcrumb {
+        font-size: 10px !important;
       }
       .bento {
         grid-template-columns: 1fr !important;

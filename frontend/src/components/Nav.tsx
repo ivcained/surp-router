@@ -207,13 +207,10 @@ export function Nav({
           </div>
         </div>
 
-        {/* Top bar with wallet widget + logout */}
-        <header style={{
-          position: 'sticky', top: 0, zIndex: 40,
-          background: 'rgba(0,0,0,0.9)', borderBottom: '1px solid var(--border)',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '12px 24px', backdropFilter: 'blur(8px)',
-        }}>
+        {/* Top bar with wallet widget + logout.
+            On mobile the top bar wraps: wallet stays on row 1, logout
+            drops to row 2 below it so it never overflows the viewport. */}
+        <header className="dash-topbar">
           <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button
               className="site-hamburger"
@@ -225,14 +222,15 @@ export function Nav({
                 color: 'var(--green)', cursor: 'pointer', padding: 0, fontSize: 18, lineHeight: 1,
               }}
             >≡</button>
-            <span className="faint" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>
+            <span className="faint dash-breadcrumb" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>
               ▸ {DASH_PAGES.find(p => p.id === page)?.label}
             </span>
           </span>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {/* Wallet widget — top right */}
+          <div className="dash-actions">
+            {/* Wallet widget — balance + address */}
             <button
+              className="dash-wallet"
               onClick={onWalletClick}
               style={{
                 background: 'var(--bg-card)', border: '1px solid var(--green)',
@@ -251,6 +249,7 @@ export function Nav({
             </button>
 
             <button
+              className="dash-logout"
               onClick={onLogout}
               style={{
                 background: 'transparent', border: '1px solid var(--border-bright)',
