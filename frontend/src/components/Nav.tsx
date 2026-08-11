@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { shortAddr } from '../lib'
 import type { Page } from '../App'
 import type { ReactNode } from 'react'
@@ -76,6 +76,8 @@ export function Nav({
   children: ReactNode
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const sidebarRef = useRef<HTMLElement | null>(null)
+  const SB_SCROLL_KEY = 'surp-sidebar-scroll'
 
   // Current path — used to light up the matching site link (explore section).
   // The account pages (overview/wallet/etc.) are SPA state, highlighted by `page`.
@@ -87,6 +89,26 @@ export function Nav({
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setDrawerOpen(false) }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
+  }, [])
+
+  // Persist sidebar scroll position across page navigations: save on link
+  // click (before the browser navigates), restore on mount. Prevents the
+  // sidebar from jumping back to the top after clicking a scrolled-to item.
+  const saveSidebarScroll = () => {
+    if (sidebarRef.current) {
+      try { sessionStorage.setItem(SB_SCROLL_KEY, String(sidebarRef.current.scrollTop)) } catch (e) {}
+    }
+  }
+  useEffect(() => {
+    const sb = sidebarRef.current
+    if (sb) {
+      let saved: string | null = null
+      try { saved = sessionStorage.getItem(SB_SCROLL_KEY) } catch (e) {}
+      if (saved !== null) {
+        // Restore after a tick so layout settles.
+        requestAnimationFrame(() => { sb.scrollTop = parseInt(saved, 10) || 0 })
+      }
+    }
   }, [])
 
   return (
@@ -104,6 +126,7 @@ export function Nav({
 
       {/* Left sidebar — vertically stacked menu, off-canvas on mobile */}
       <aside
+        ref={sidebarRef}
         className={drawerOpen ? 'sidebar-open' : ''}
         style={{
           width: 240, flexShrink: 0,
@@ -130,7 +153,7 @@ export function Nav({
           {DASH_PAGES.map(p => (
             <button
               key={p.id}
-              onClick={() => setPage(p.id)}
+              onClick={() => { saveSidebarScroll(); setPage(p.id) }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left',
                 background: page === p.id ? 'linear-gradient(90deg, rgba(0,255,156,0.14), rgba(0,255,156,0.03))' : 'transparent',
@@ -165,6 +188,7 @@ export function Nav({
                 <a
                   key={p.path}
                   href={p.path}
+                  onClick={saveSidebarScroll}
                   className={isActive ? 'nav-item-active' : ''}
                   style={{
                     display: 'block',

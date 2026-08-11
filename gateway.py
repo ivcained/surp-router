@@ -1986,10 +1986,46 @@ function closeSidebar() {
 document.addEventListener("keydown", function(e) {
   if (e.key === "Escape") closeSidebar();
 });
-// Close drawer when any menu link is clicked (mobile)
+// Close drawer when any menu link is clicked (mobile) AND persist the sidebar
+// scroll position so it does not jump back to the top on the next page.
+// We store it in sessionStorage keyed per-path so navigating back restores the
+// exact scroll place the user was at, without caching stale positions forever.
+var SB_SCROLL_KEY = "surp-sidebar-scroll";
+
+// Restore the saved sidebar scroll position. Runs immediately (the script sits
+// at the end of <body> so the sidebar DOM exists) with retries so font/layout
+// settling that clamps scrollHeight never wins.
+(function() {
+  var sb = document.querySelector(".site-sidebar");
+  if (!sb) return;
+  var saved = null;
+  try { saved = sessionStorage.getItem(SB_SCROLL_KEY); } catch (e) {}
+  if (saved === null) return;
+  var target = parseInt(saved, 10) || 0;
+  var restore = function() {
+    if (!sb.isConnected) return;
+    var max = sb.scrollHeight - sb.clientHeight;
+    sb.scrollTop = Math.min(target, Math.max(0, max));
+  };
+  restore();
+  window.setTimeout(restore, 100);
+  window.setTimeout(restore, 400);
+  if (document.readyState !== "complete") {
+    window.addEventListener("load", function() {
+      window.setTimeout(restore, 100);
+    });
+  }
+})();
+
 document.addEventListener("DOMContentLoaded", function() {
+  var sb = document.querySelector(".site-sidebar");
   var links = document.querySelectorAll(".site-menu a");
-  links.forEach(function(a) { a.addEventListener("click", closeSidebar); });
+  links.forEach(function(a) { a.addEventListener("click", function() {
+    closeSidebar();
+    if (sb) {
+      try { sessionStorage.setItem(SB_SCROLL_KEY, String(sb.scrollTop)); } catch (e) {}
+    }
+  }); });
 
   // Mark the current page's menu link as active so it lights up with a glow.
   var current = document.body.getAttribute("data-active-path")
