@@ -3619,16 +3619,19 @@ async def api_studio_status(request: web.Request) -> web.Response:
 
 
 async def api_studio_generate(request: web.Request) -> web.Response:
-    """POST /api/studio/generate — text-to-image, image-to-image, video.
+    """POST /api/studio/generate — x402-paywalled text-to-image / video.
+
+    Two-phase x402 flow (same as chat completions):
+      1. No PAYMENT-SIGNATURE header → returns 402 with the quoted price
+         (Surplus media-unit price + 5% router markup, floored at $0.01)
+         and a PAYMENT-REQUIRED header. The client signs an EIP-3009 USDC
+         transfer with their wallet and retries.
+      2. With PAYMENT-SIGNATURE → verifies + settles on Base via the
+         facilitator, then runs the generation and stores it privately.
 
     Body: {kind: 'image'|'video', mode: 't2i'|'i2i'|'t2v'|'i2v',
            prompt: str, image_url?: str, params?: {steps, guidance, seed,
-           aspect, strength, video_model}}
-
-    Generation is gated on the user's wallet USDC balance: a user with no
-    funds cannot burn surp's Surplus credits for free. The gate requires a
-    minimum balance (SURP_STUDIO_MIN_BALANCE_USDC, default $0.05) before
-    any generation is attempted.
+           aspect, strength, image_model, video_model}}
     """
     user_id = _auth_user(request)
     if not user_id:
@@ -3640,6 +3643,7 @@ async def api_studio_generate(request: web.Request) -> web.Response:
     kind = str(body.get("kind", "image"))
     mode = str(body.get("mode", "t2i"))
     prompt = str(body.get("prompt", "")).strip()
+    params = body.get("params") or {}
     if kind not in ("image", "video"):
         return web.json_response({"error": "kind must be image or video"}, status=400)
     if mode not in ("t2i", "i2i", "t2v", "i2v"):
@@ -3649,32 +3653,121 @@ async def api_studio_generate(request: web.Request) -> web.Response:
     if mode in ("i2i", "i2v") and not body.get("image_url"):
         return web.json_response({"error": "image_url required for image-to-* modes"}, status=400)
 
-    # ── Balance gate: never let a zero-balance user burn surp's credits ──
-    min_usdc = float(os.environ.get("SURP_STUDIO_MIN_BALANCE_USDC", "0.05"))
-    bal = ua.get_user_balance(user_id)
-    usdc_atomic = int(bal.get("usdc_atomic", 0))
-    if usdc_atomic < int(min_usdc * 1_000_000):
-        return web.json_response({
-            "error": "insufficient balance — add USDC to your wallet to use studio generation",
-            "required_usdc": min_usdc,
-            "balance_usdc": round(usdc_atomic / 1_000_000, 6),
-        }, status=402)
+    # Resolve the concrete model + quote.
+    if kind == "image":
+        model = str(params.get("image_model", "venice-flux-1.1-pro"))
+    else:
+        model = str(params.get("video_model", "venice-wan-2.7"))
+    try:
+        markets = await GCACHE.get()
+    except Exception:
+        markets = []
+    price_usd = st.quote_price_usd(model, markets)
+    if price_usd is None:
+        # No live quote — refuse rather than give away generation for free.
+        return web.json_response(
+            {"error": f"no market price for {model} — generation unavailable right now"},
+            status=503,
+        )
+
+    payment_header = request.headers.get("PAYMENT-SIGNATURE") or request.headers.get("X-PAYMENT")
+    if not payment_header:
+        # ── Phase 1: quote + payment-required ──
+        amount_atomic = str(int(price_usd * 1_000_000))
+        from x402.schemas.payments import PaymentRequirements
+        from x402.http import encode_payment_required_header, PAYMENT_REQUIRED_HEADER
+        req = PaymentRequirements(
+            scheme="exact",
+            network=NETWORK,
+            asset=ASSET,
+            amount=amount_atomic,
+            payTo=PAY_TO,
+            maxTimeoutSeconds=600,
+            extra={
+                "description": f"surp studio: {mode} on {model}",
+                "mimeType": "application/json",
+                "resource": "surp.ivc.lol/api/studio/generate",
+                "name": "USD Coin",
+                "version": "2",
+            },
+        )
+        from x402.schemas.payments import PaymentRequired as _PR
+        pr = _PR(x402Version=2, accepts=[req])
+        header_val = encode_payment_required_header(pr)
+        body_resp = {
+            "x402Version": 2,
+            "error": "payment-required",
+            "resource": "POST /api/studio/generate",
+            "kind": kind,
+            "mode": mode,
+            "model": model,
+            "surplus_price_usd": round(price_usd / (1 + st.STUDIO_MARKUP_BPS / 10_000.0), 6),
+            "price_usd": f"${price_usd:.4f}",
+            "accepts": [{
+                "scheme": "exact",
+                "network": NETWORK,
+                "asset": ASSET,
+                "amount": amount_atomic,
+                "payTo": PAY_TO,
+                "maxTimeoutSeconds": 600,
+                "extra": {
+                    "description": f"surp studio: {mode} on {model}",
+                    "mimeType": "application/json",
+                    "resource": "surp.ivc.lol/api/studio/generate",
+                    "name": "USD Coin",
+                    "version": "2",
+                },
+            }],
+        }
+        log.info(f"studio 402 {model} price=${price_usd:.4f} (no payment)")
+        return web.json_response(body_resp, status=402, headers={PAYMENT_REQUIRED_HEADER: header_val})
+
+    # ── Phase 2: verify + settle, then generate ──
+    loop = asyncio.get_running_loop()
+
+    def _verify_and_settle():
+        try:
+            import base64 as _b64
+            raw_payload = _b64.b64decode(payment_header)
+            from x402.schemas.payments import PaymentPayload
+            payload_dict = json.loads(raw_payload)
+            payload_obj = PaymentPayload.model_validate(payload_dict)
+            requirements = payload_obj.accepted
+            vr = _facilitator.verify(payload_obj, requirements)
+            if not vr.is_valid:
+                return {"ok": False, "error": f"verification failed: {vr.invalid_reason}: {vr.invalid_message}"}
+            sr = _facilitator.settle(payload_obj, requirements)
+            if not sr.success:
+                return {"ok": False, "error": f"settlement failed: {sr.error_reason}: {sr.error_message}"}
+            return {"ok": True, "tx": sr.transaction, "network": sr.network, "payer": sr.payer}
+        except Exception as e:
+            log.error(f"studio facilitator error: {e}\n{traceback.format_exc()}")
+            return {"ok": False, "error": f"facilitator error: {str(e)}"}
+
+    result = await loop.run_in_executor(None, _verify_and_settle)
+    if not result.get("ok"):
+        return web.json_response({"error": result.get("error", "payment failed")}, status=402)
+    tx_hash = result.get("tx", "")
+    payer = result.get("payer", "")
+    log.info(f"studio payment settled: {tx_hash} for {model} (payer {payer[:10]}...)")
 
     try:
         res = await st.generate(
             kind, mode, prompt,
             image_url=str(body.get("image_url", "")),
-            params=body.get("params") or {},
+            params=params,
         )
     except Exception as e:
-        log.error(f"studio generate failed: {e}")
+        log.error(f"studio generate failed after payment {tx_hash}: {e}")
         return web.json_response({"error": f"generation failed: {e}"}, status=500)
     creation = st.create_creation(
         user_id, kind, mode, prompt,
         res["media_url"], res.get("thumb_url", ""),
-        params=body.get("params") or {},
+        params=params,
     )
     creation["provider"] = res["provider"]
+    creation["paid_usdc"] = price_usd
+    creation["tx_hash"] = tx_hash
     return web.json_response(creation)
 
 

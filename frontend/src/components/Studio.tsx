@@ -21,6 +21,94 @@ const PRESETS: { label: string; prompt: string }[] = [
 ]
 
 const ASPECTS = ['square_hd', 'portrait_4_3', 'landscape_4_3', 'portrait_16_9', 'landscape_16_9']
+
+/* ── x402 payment helper ──────────────────────────────────────────────────
+   The studio generate endpoint is x402-paywalled: the first call returns
+   402 with a PAYMENT-REQUIRED header; the client signs an EIP-3009 USDC
+   transfer (TransferWithAuthorization, EIP-712) with their wallet and
+   retries with a PAYMENT-SIGNATURE header. Surp charges its router markup
+   (5%) on top of the Surplus media-unit price. */
+const USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+const CHAIN_ID = 8453
+
+function hexNonce(): string {
+  const bytes = new Uint8Array(32)
+  crypto.getRandomValues(bytes)
+  return '0x' + Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+async function payAndRetry(
+  authFetch: (u: string, o?: any) => Promise<Response>,
+  wallet: { signTypedData: (d: any) => Promise<string>; address?: string } | undefined,
+  body: any,
+  paymentHeader: string,
+): Promise<Response> {
+  if (!wallet?.signTypedData) {
+    throw new Error('wallet not connected — connect your wallet to pay for generation')
+  }
+  // Parse the PAYMENT-REQUIRED header (base64 JSON: {accepts: [{amount, payTo, ...}]})
+  const decoded = JSON.parse(atob(paymentHeader))
+  const req = decoded.accepts?.[0]
+  if (!req) throw new Error('no payment requirements in header')
+
+  const now = Math.floor(Date.now() / 1000)
+  const nonce = hexNonce()
+  const message = {
+    from: wallet.address || '',
+    to: req.payTo,
+    value: BigInt(req.amount).toString(),
+    validAfter: '0',
+    validBefore: String(now + (req.maxTimeoutSeconds || 600)),
+    nonce,
+  }
+  const domain = {
+    name: 'USD Coin',
+    version: '2',
+    chainId: CHAIN_ID,
+    verifyingContract: USDC_ADDRESS,
+  }
+  const types = {
+    TransferWithAuthorization: [
+      { name: 'from', type: 'address' },
+      { name: 'to', type: 'address' },
+      { name: 'value', type: 'uint256' },
+      { name: 'validAfter', type: 'uint256' },
+      { name: 'validBefore', type: 'uint256' },
+      { name: 'nonce', type: 'bytes32' },
+    ],
+  }
+  const signature = await wallet.signTypedData({ domain, types, primaryType: 'TransferWithAuthorization', message })
+
+  // Build the x402 PaymentPayload (matches the gateway's expected schema).
+  const payload = {
+    x402Version: 2,
+    payload: {
+      authorization: {
+        from: message.from,
+        to: message.to,
+        value: message.value,
+        validAfter: message.validAfter,
+        validBefore: message.validBefore,
+        nonce: message.nonce,
+      },
+      signature,
+    },
+    accepted: [req],
+    resource: {
+      name: 'surp studio generation',
+      mimeType: 'application/json',
+      url: 'surp.ivc.lol/api/studio/generate',
+    },
+    extensions: {},
+  }
+  const header = btoa(JSON.stringify(payload))
+  return authFetch('/api/studio/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'PAYMENT-SIGNATURE': header },
+    body: JSON.stringify(body),
+  })
+}
+
 const IMAGE_MODELS = [
   { id: 'venice-flux-1.1-pro', label: 'Flux 1.1 Pro' },
   { id: 'venice-flux-2-pro', label: 'Flux 2 Pro' },
@@ -42,7 +130,7 @@ const VIDEO_MODELS = [
   { id: 'ltx-2-fast-text-to-video', label: 'LTX-2 Fast' },
 ]
 
-export function Studio() {
+export function Studio({ wallet }: { wallet?: { signTypedData: (d: any) => Promise<string>; address?: string } }) {
   const authFetch = useAuthFetch()
   const [tab, setTab] = useState<StudioTab>('chat')
   const [provider, setProvider] = useState<{ configured: boolean; provider: string } | null>(null)
@@ -77,8 +165,8 @@ export function Studio() {
         </div>
       )}
       {tab === 'chat' && <ChatPane authFetch={authFetch} />}
-      {tab === 'image' && <ImagePane authFetch={authFetch} onDone={() => setTab('gallery')} />}
-      {tab === 'video' && <VideoPane authFetch={authFetch} onDone={() => setTab('gallery')} />}
+      {tab === 'image' && <ImagePane authFetch={authFetch} wallet={wallet} onDone={() => setTab('gallery')} />}
+      {tab === 'video' && <VideoPane authFetch={authFetch} wallet={wallet} onDone={() => setTab('gallery')} />}
       {tab === 'gallery' && <Gallery authFetch={authFetch} />}
     </div>
   )
@@ -258,7 +346,11 @@ function PromptBox({ prompt, setPrompt, preset, onPreset, onGenerate, busy, labe
 
 /* ── Image ────────────────────────────────────────────────────────────── */
 
-function ImagePane({ authFetch, onDone }: { authFetch: (u: string, o?: any) => Promise<Response>; onDone: () => void }) {
+function ImagePane({ authFetch, wallet, onDone }: {
+  authFetch: (u: string, o?: any) => Promise<Response>
+  wallet?: { signTypedData: (d: any) => Promise<string>; address?: string }
+  onDone: () => void
+}) {
   const [mode, setMode] = useState<'t2i' | 'i2i'>('t2i')
   const [prompt, setPrompt] = useState('')
   const [srcImage, setSrcImage] = useState<string>('')
@@ -267,6 +359,7 @@ function ImagePane({ authFetch, onDone }: { authFetch: (u: string, o?: any) => P
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<Creation | null>(null)
   const [err, setErr] = useState('')
+  const [quote, setQuote] = useState<{ price_usd: string; model: string } | null>(null)
 
   const upload = async (file: File) => {
     const fd = new FormData()
@@ -278,22 +371,47 @@ function ImagePane({ authFetch, onDone }: { authFetch: (u: string, o?: any) => P
   }
 
   const generate = async () => {
-    setBusy(true); setErr(''); setResult(null)
+    setBusy(true); setErr(''); setResult(null); setQuote(null)
+    const body = { kind: 'image', mode, prompt, image_url: srcImage, params: { ...params, image_model: imageModel } }
     try {
-      const res = await authFetch('/api/studio/generate', {
+      // Phase 1: get the quote (402 + PAYMENT-REQUIRED header)
+      const res1 = await authFetch('/api/studio/generate', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kind: 'image', mode, prompt, image_url: srcImage, params: { ...params, image_model: imageModel } }),
+        body: JSON.stringify(body),
       })
-      const data = await res.json()
-      if (!res.ok) {
-        if (res.status === 402) {
-          setErr(`⚠ ${data.error || 'insufficient balance'} — add USDC to your wallet first.`)
-        } else {
-          setErr(data.error || 'generation failed')
+      const data1 = await res1.json()
+      if (res1.status === 402 && data1?.error === 'payment-required') {
+        const payHeader = res1.headers.get('PAYMENT-REQUIRED') || ''
+        if (!payHeader) { setErr(data1.error || 'payment required but no header'); setBusy(false); return }
+        // Show the quote and require the wallet to sign
+        setQuote({ price_usd: data1.price_usd || '?', model: data1.model || imageModel })
+        if (!wallet?.signTypedData) {
+          setErr('connect your wallet to pay for generation')
+          setBusy(false)
+          return
         }
+        const res2 = await payAndRetry(authFetch, wallet, body, payHeader)
+        const data2 = await res2.json()
+        if (!res2.ok) {
+          setErr(data2.error || 'payment or generation failed')
+          setBusy(false)
+          return
+        }
+        setResult(data2)
+        onDone()
+        setBusy(false)
         return
       }
-      setResult(data)
+      if (!res1.ok) {
+        if (res1.status === 402) {
+          setErr(`⚠ ${data1.error || 'insufficient balance'} — add USDC to your wallet first.`)
+        } else {
+          setErr(data1.error || 'generation failed')
+        }
+        setBusy(false)
+        return
+      }
+      setResult(data1)
       onDone()
     } catch (e) { setErr(String(e)) } finally { setBusy(false) }
   }
@@ -329,6 +447,11 @@ function ImagePane({ authFetch, onDone }: { authFetch: (u: string, o?: any) => P
       <PromptBox prompt={prompt} setPrompt={setPrompt} preset="" onPreset={setPrompt}
         onGenerate={generate} busy={busy} label={mode === 't2i' ? 'generate image' : 'transform image'} />
       <ParamsPanel params={params} setParams={setParams} />
+      {quote && !busy && (
+        <p className="dim" style={{ marginTop: 10, fontSize: 12 }}>
+          ▸ {quote.model} · <b style={{ color: 'var(--green)' }}>{quote.price_usd}</b> (surplus + 5% router) — sign the payment in your wallet
+        </p>
+      )}
       {err && <p style={{ color: 'var(--red)', marginTop: 10 }}>{err}</p>}
       {result && (
         <div style={{ marginTop: 12 }}>
@@ -342,7 +465,11 @@ function ImagePane({ authFetch, onDone }: { authFetch: (u: string, o?: any) => P
 
 /* ── Video ────────────────────────────────────────────────────────────── */
 
-function VideoPane({ authFetch, onDone }: { authFetch: (u: string, o?: any) => Promise<Response>; onDone: () => void }) {
+function VideoPane({ authFetch, wallet, onDone }: {
+  authFetch: (u: string, o?: any) => Promise<Response>
+  wallet?: { signTypedData: (d: any) => Promise<string>; address?: string }
+  onDone: () => void
+}) {
   const [mode, setMode] = useState<'t2v' | 'i2v'>('t2v')
   const [prompt, setPrompt] = useState('')
   const [srcImage, setSrcImage] = useState<string>('')
@@ -350,6 +477,7 @@ function VideoPane({ authFetch, onDone }: { authFetch: (u: string, o?: any) => P
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<Creation | null>(null)
   const [err, setErr] = useState('')
+  const [quote, setQuote] = useState<{ price_usd: string; model: string } | null>(null)
 
   const upload = async (file: File) => {
     const fd = new FormData(); fd.append('image', file)
@@ -360,22 +488,41 @@ function VideoPane({ authFetch, onDone }: { authFetch: (u: string, o?: any) => P
   }
 
   const generate = async () => {
-    setBusy(true); setErr(''); setResult(null)
+    setBusy(true); setErr(''); setResult(null); setQuote(null)
+    const body = { kind: 'video', mode, prompt, image_url: srcImage, params: { video_model: videoModel } }
     try {
-      const res = await authFetch('/api/studio/generate', {
+      const res1 = await authFetch('/api/studio/generate', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kind: 'video', mode, prompt, image_url: srcImage, params: { video_model: videoModel } }),
+        body: JSON.stringify(body),
       })
-      const data = await res.json()
-      if (!res.ok) {
-        if (res.status === 402) {
-          setErr(`⚠ ${data.error || 'insufficient balance'} — add USDC to your wallet first.`)
-        } else {
-          setErr(data.error || 'generation failed')
+      const data1 = await res1.json()
+      if (res1.status === 402 && data1?.error === 'payment-required') {
+        const payHeader = res1.headers.get('PAYMENT-REQUIRED') || ''
+        if (!payHeader) { setErr(data1.error || 'payment required but no header'); setBusy(false); return }
+        setQuote({ price_usd: data1.price_usd || '?', model: data1.model || videoModel })
+        if (!wallet?.signTypedData) {
+          setErr('connect your wallet to pay for generation')
+          setBusy(false)
+          return
         }
+        const res2 = await payAndRetry(authFetch, wallet, body, payHeader)
+        const data2 = await res2.json()
+        if (!res2.ok) { setErr(data2.error || 'payment or generation failed'); setBusy(false); return }
+        setResult(data2)
+        onDone()
+        setBusy(false)
         return
       }
-      setResult(data)
+      if (!res1.ok) {
+        if (res1.status === 402) {
+          setErr(`⚠ ${data1.error || 'insufficient balance'} — add USDC to your wallet first.`)
+        } else {
+          setErr(data1.error || 'generation failed')
+        }
+        setBusy(false)
+        return
+      }
+      setResult(data1)
       onDone()
     } catch (e) { setErr(String(e)) } finally { setBusy(false) }
   }
@@ -410,6 +557,11 @@ function VideoPane({ authFetch, onDone }: { authFetch: (u: string, o?: any) => P
       </div>
       <PromptBox prompt={prompt} setPrompt={setPrompt} preset="" onPreset={setPrompt}
         onGenerate={generate} busy={busy} label={mode === 't2v' ? 'generate video' : 'animate image'} />
+      {quote && !busy && (
+        <p className="dim" style={{ marginTop: 10, fontSize: 12 }}>
+          ▸ {quote.model} · <b style={{ color: 'var(--green)' }}>{quote.price_usd}</b> (surplus + 5% router) — sign the payment in your wallet
+        </p>
+      )}
       {err && <p style={{ color: 'var(--red)', marginTop: 10 }}>{err}</p>}
       {result && (
         <div style={{ marginTop: 12 }}>

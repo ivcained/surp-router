@@ -79,7 +79,7 @@ export default function App() {
       {page === 'apikeys' && <ApiKeys />}
       {page === 'activity' && <Activity />}
       {page === 'usage' && <Usage />}
-      {page === 'studio' && <Studio />}
+      {page === 'studio' && <Studio wallet={activeWallet as any} />}
     </>
   )
 

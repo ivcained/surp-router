@@ -43,6 +43,10 @@ SURPLUS_KEY = os.environ.get("SURPLUS_INTELLIGENCE_API_KEY", "")
 FAL_KEY = os.environ.get("SURP_FAL_KEY", "")  # optional fallback provider
 FAL_API = "https://fal.run"
 
+# Router markup on top of Surplus's per-media-unit price (same bps as chat).
+STUDIO_MARKUP_BPS = int(os.environ.get("SURP_STUDIO_MARKUP_BPS", os.environ.get("SURP_MARKUP_BPS", "500")))
+STUDIO_FLOOR_CENTS = float(os.environ.get("SURP_STUDIO_FLOOR_CENTS", "1"))
+
 _lock = threading.RLock()
 _conn: Optional[sqlite3.Connection] = None
 
@@ -109,6 +113,31 @@ def provider_status() -> dict[str, Any]:
         "configured": bool(SURPLUS_KEY),
         "provider": "surplus" if SURPLUS_KEY else ("fal" if FAL_KEY else "mock"),
     }
+
+
+def quote_price_usd(model: str, markets: Optional[list[dict]] = None) -> Optional[float]:
+    """Return the surp price (Surplus media-unit price + router markup) in USD.
+
+    Looks up the model's `best_media_unit_price` (atomic units, 1e6 = $1.00)
+    in the Surplus market feed, applies STUDIO_MARKUP_BPS, floors at
+    STUDIO_FLOOR_CENTS, and returns dollars. Returns None if the model is
+    not found or has no media price (caller decides whether to fall back).
+    """
+    if not markets:
+        return None
+    for m in markets:
+        if not isinstance(m, dict):
+            continue
+        if m.get("model") != model:
+            continue
+        atomic = m.get("best_media_unit_price") or m.get("best_price_per_1m")
+        if not atomic:
+            return None
+        price_usd = float(atomic) / 1e6
+        marked = price_usd * (1 + STUDIO_MARKUP_BPS / 10_000.0)
+        cents = max(STUDIO_FLOOR_CENTS, marked * 100)
+        return round(float(int(cents) + (1 if cents > int(cents) else 0)) / 100.0, 6)
+    return None
 
 
 async def _surplus_generate_image(prompt: str, mode: str, image_url: str = "",

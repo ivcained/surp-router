@@ -97,3 +97,27 @@ def test_provider_status_surplus():
     assert s["provider"] == "surplus"
     assert s["configured"] is True
     st.SURPLUS_KEY = ""
+
+
+# ── pricing (x402 quote) ────────────────────────────────────────────────────
+
+def test_quote_price_usd_applies_markup():
+    markets = [{"model": "venice-flux-1.1-pro", "best_media_unit_price": 11700}]
+    # 11700 atomic = $0.0117, +5% = $0.012285, ceil to $0.02 (floor $0.01... wait)
+    # marked cents = 1.2285 → ceil = 2 cents → $0.02
+    price = st.quote_price_usd("venice-flux-1.1-pro", markets)
+    assert price == 0.02
+
+
+def test_quote_price_usd_floor():
+    markets = [{"model": "tiny", "best_media_unit_price": 100}]
+    # $0.0001 * 1.05 = $0.000105 → 0.0105 cents → floored to 1 cent
+    assert st.quote_price_usd("tiny", markets) == 0.01
+
+
+def test_quote_price_usd_missing_model():
+    assert st.quote_price_usd("nope", [{"model": "other", "best_media_unit_price": 100}]) is None
+
+
+def test_quote_price_usd_no_markets():
+    assert st.quote_price_usd("x", None) is None
