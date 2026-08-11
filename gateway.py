@@ -3624,6 +3624,11 @@ async def api_studio_generate(request: web.Request) -> web.Response:
     Body: {kind: 'image'|'video', mode: 't2i'|'i2i'|'t2v'|'i2v',
            prompt: str, image_url?: str, params?: {steps, guidance, seed,
            aspect, strength, video_model}}
+
+    Generation is gated on the user's wallet USDC balance: a user with no
+    funds cannot burn surp's Surplus credits for free. The gate requires a
+    minimum balance (SURP_STUDIO_MIN_BALANCE_USDC, default $0.05) before
+    any generation is attempted.
     """
     user_id = _auth_user(request)
     if not user_id:
@@ -3643,6 +3648,18 @@ async def api_studio_generate(request: web.Request) -> web.Response:
         return web.json_response({"error": "prompt required"}, status=400)
     if mode in ("i2i", "i2v") and not body.get("image_url"):
         return web.json_response({"error": "image_url required for image-to-* modes"}, status=400)
+
+    # ── Balance gate: never let a zero-balance user burn surp's credits ──
+    min_usdc = float(os.environ.get("SURP_STUDIO_MIN_BALANCE_USDC", "0.05"))
+    bal = ua.get_user_balance(user_id)
+    usdc_atomic = int(bal.get("usdc_atomic", 0))
+    if usdc_atomic < int(min_usdc * 1_000_000):
+        return web.json_response({
+            "error": "insufficient balance — add USDC to your wallet to use studio generation",
+            "required_usdc": min_usdc,
+            "balance_usdc": round(usdc_atomic / 1_000_000, 6),
+        }, status=402)
+
     try:
         res = await st.generate(
             kind, mode, prompt,
@@ -3727,6 +3744,7 @@ async def api_studio_chat(request: web.Request) -> web.Response:
 
     The studio chat is treasury-sponsored (surp/free) so users can chat
     without a wallet. Body: {messages: [{role, content}], model?: str}
+    model accepts surp/free (default), surp/free-coding, surp/free-fast.
     """
     user_id = _auth_user(request)
     if not user_id:
@@ -3738,9 +3756,24 @@ async def api_studio_chat(request: web.Request) -> web.Response:
     messages = body.get("messages") or []
     if not messages or not isinstance(messages, list):
         return web.json_response({"error": "messages required"}, status=400)
+    # Chat model selector: only treasury-sponsored free routes are offered
+    # (the studio chat must not burn paid credits or require x402).
+    model = str(body.get("model", "surp/free") or "surp/free")
+    free_class_map = {
+        "surp/free": "chat",
+        "surp/free-coding": "coding",
+        "surp/free-fast": "fast",
+        "surp/srup-free": "chat",
+    }
+    free_class = free_class_map.get(model)
+    if free_class is None:
+        return web.json_response(
+            {"error": "studio chat supports free routes only: surp/free, surp/free-coding, surp/free-fast"},
+            status=400,
+        )
     client_ip = request.headers.get("X-Real-IP") or request.remote or "studio"
     payload = {
-        "model": "surp/free",
+        "model": model,
         "messages": messages,
         "max_tokens": min(int(body.get("max_tokens", 500) or 500), 1000),
         "stream": False,
@@ -3750,7 +3783,7 @@ async def api_studio_chat(request: web.Request) -> web.Response:
     except Exception:
         markets = []
     try:
-        resp = await _serve_free_completion(request, payload, markets, client_ip, free_class="chat")
+        resp = await _serve_free_completion(request, payload, markets, client_ip, free_class=free_class)
         # _serve_free_completion returns an aiohttp Response — read its body.
         data = json.loads(resp.body) if isinstance(resp.body, (bytes, str)) else resp.body
         return web.json_response(data)
