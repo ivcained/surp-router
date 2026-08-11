@@ -1701,8 +1701,9 @@ _HTML_BASE = r"""<!DOCTYPE html>
   .site-menu { padding: 0 12px 16px; }
   .site-menu-label {
     color: #555; font-size: 9px; text-transform: uppercase; letter-spacing: 1.5px;
-    margin: 16px 0 8px; padding-left: 12px;
+    margin: 18px 0 8px; padding-left: 12px;
   }
+  .site-menu-label:first-child { margin-top: 4px; }
   .site-menu a {
     display: block; color: var(--fg-dim); border-left: 2px solid transparent;
     padding: 7px 12px; border-radius: 4px; font-size: 13px; text-decoration: none;
@@ -1769,17 +1770,33 @@ _HTML_BASE = r"""<!DOCTYPE html>
   .site-content .card { border-radius: 6px; transition: border-color .2s, box-shadow .2s; }
   .site-content .card:hover { border-color: var(--border-bright); }
 
+  /* ── Mobile: sidebar becomes an off-canvas drawer ─────────────────── */
+  .site-hamburger {
+    display: none; width: 36px; height: 36px; align-items: center; justify-content: center;
+    background: transparent; border: 1px solid var(--border-bright); border-radius: 4px;
+    color: var(--accent); cursor: pointer; padding: 0; font-size: 18px; line-height: 1;
+  }
+  .site-hamburger:hover { border-color: var(--accent); }
+  .site-backdrop {
+    display: none; position: fixed; inset: 0; z-index: 59;
+    background: rgba(0,0,0,.7); opacity: 0; transition: opacity .2s;
+  }
+  .site-backdrop.open { display: block; opacity: 1; }
+
   @media (max-width: 900px) {
-    .site-sidebar { display: none; }
+    .site-sidebar {
+      transform: translateX(-100%); transition: transform .25s ease;
+      box-shadow: 4px 0 24px rgba(0,0,0,.5);
+    }
+    .site-sidebar.open { transform: translateX(0); }
     .site-main { margin-left: 0; }
+    .site-hamburger { display: inline-flex; }
     .site-topbar { padding: 9px 12px; }
+    .site-breadcrumb { font-size: 10px; }
     .site-content { padding: 16px 12px 40px; }
     .site-actions .hide-mobile { display: none; }
     .market-track { animation-duration: 30s; }
-    .site-content > nav {
-      display: flex; flex-direction: column; align-items: stretch; gap: 8px;
-      padding: 12px 0; margin-bottom: 16px;
-    }
+    .site-content > nav { display: flex; flex-direction: column; align-items: stretch; gap: 8px; padding: 12px 0; margin-bottom: 16px; }
     .site-content > nav ul { justify-content: center; gap: 10px; }
   }
 </style>
@@ -1792,22 +1809,28 @@ _HTML_BASE = r"""<!DOCTYPE html>
       <small>surplus intelligence router</small>
     </div>
     <nav class="site-menu" aria-label="primary">
-      <div class="site-menu-label">▸ explore</div>
+      <div class="site-menu-label">▸ discover</div>
       <a href="/">home</a>
       <a href="/docs" class="docs-link">docs ★</a>
-      <a href="/status">status</a>
+      <a href="/about">about</a>
+
+      <div class="site-menu-label">▸ build</div>
       <a href="/connect">connect</a>
       <a href="/builder">builder</a>
+      <a href="/playground">playground</a>
+      <a href="/compare">compare</a>
+      <a href="/find">find model</a>
+
+      <div class="site-menu-label">▸ models &amp; pricing</div>
+      <a href="/top">top models</a>
       <a href="/free-models">free models</a>
+      <a href="/auction">cache auction</a>
+
+      <div class="site-menu-label">▸ monitor</div>
+      <a href="/status">status</a>
       <a href="/health">health board</a>
       <a href="/performance">verified tps</a>
-      <a href="/auction">cache auction</a>
       <a href="/features">updates</a>
-      <a href="/top">top models</a>
-      <a href="/find">find model</a>
-      <a href="/compare">compare</a>
-      <a href="/playground">playground</a>
-      <a href="/about">about</a>
     </nav>
     <div class="site-system"><span class="site-system-dot"></span>all systems nominal</div>
   </aside>
@@ -1836,12 +1859,16 @@ _HTML_BASE = r"""<!DOCTYPE html>
       </div>
     </div>
     <div class="site-topbar">
-      <span class="site-breadcrumb">▸ __BREADCRUMB__</span>
+      <span style="display:flex;align-items:center;gap:10px;">
+        <button class="site-hamburger" onclick="toggleSidebar()" aria-label="toggle menu">≡</button>
+        <span class="site-breadcrumb">▸ __BREADCRUMB__</span>
+      </span>
       <span class="site-actions">
         <a href="/dashboard" class="hide-mobile">usage</a>
         <a href="/app" class="account-link">▶ account</a>
       </span>
     </div>
+    <div class="site-backdrop" id="site-backdrop" onclick="closeSidebar()"></div>
     <div class="site-content">
 <div class="container">
 <nav>
@@ -1917,6 +1944,29 @@ function dismissAnnounce() {
   if (b) b.classList.add("hidden");
   try { localStorage.setItem("surp-announce-v2-free-models", "dismissed"); } catch (e) {}
 }
+
+// Mobile sidebar drawer — open/close with hamburger, click backdrop, or Escape.
+function toggleSidebar() {
+  var sb = document.querySelector(".site-sidebar");
+  var bd = document.getElementById("site-backdrop");
+  if (!sb || !bd) return;
+  var open = sb.classList.toggle("open");
+  bd.classList.toggle("open", open);
+}
+function closeSidebar() {
+  var sb = document.querySelector(".site-sidebar");
+  var bd = document.getElementById("site-backdrop");
+  if (sb) sb.classList.remove("open");
+  if (bd) bd.classList.remove("open");
+}
+document.addEventListener("keydown", function(e) {
+  if (e.key === "Escape") closeSidebar();
+});
+// Close drawer when any menu link is clicked (mobile)
+document.addEventListener("DOMContentLoaded", function() {
+  var links = document.querySelectorAll(".site-menu a");
+  links.forEach(function(a) { a.addEventListener("click", closeSidebar); });
+});
 </script>
 </body>
 </html>

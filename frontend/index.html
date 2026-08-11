@@ -325,6 +325,32 @@
     }
     td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
     tr:hover { background: rgba(0,255,156,0.03); }
+    /* ── Mobile responsive — dashboard sidebar becomes drawer ─────────── */
+    @media (max-width: 900px) {
+      aside {
+        transform: translateX(-100%) !important;
+        box-shadow: 4px 0 24px rgba(0,0,0,0.5);
+      }
+      aside.sidebar-open {
+        transform: translateX(0) !important;
+      }
+      .site-hamburger {
+        display: inline-flex !important;
+      }
+      div[style*="margin-left: 240px"], div[style*="marginLeft: 240"] {
+        margin-left: 0 !important;
+      }
+      header {
+        padding: 9px 12px !important;
+      }
+      .bento {
+        grid-template-columns: 1fr !important;
+      }
+      .bento .span-2, .bento .span-3, .bento .span-4, .bento .row-2 {
+        grid-column: span 1 !important;
+        grid-row: span 1 !important;
+      }
+    }
   </style>
 </head>
 <body>

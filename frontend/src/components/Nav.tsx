@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { shortAddr } from '../lib'
 import type { Page } from '../App'
 import type { ReactNode } from 'react'
@@ -10,23 +11,44 @@ const DASH_PAGES: { id: Page, label: string, icon: string }[] = [
   { id: 'usage', label: 'usage', icon: '≡' },
 ]
 
-// All other site pages — accessible even after login. docs is emphasized.
-const SITE_PAGES: { path: string, label: string, emphasize?: boolean }[] = [
-  { path: '/', label: 'home' },
-  { path: '/docs', label: 'docs', emphasize: true },
-  { path: '/status', label: 'status' },
-  { path: '/connect', label: 'connect' },
-  { path: '/builder', label: 'builder' },
-  { path: '/free-models', label: 'free models' },
-  { path: '/health', label: 'health board' },
-  { path: '/performance', label: 'verified tps' },
-  { path: '/auction', label: 'cache auction' },
-  { path: '/features', label: 'updates' },
-  { path: '/top', label: 'top models' },
-  { path: '/find', label: 'find model' },
-  { path: '/compare', label: 'compare' },
-  { path: '/playground', label: 'playground' },
-  { path: '/about', label: 'about' },
+// All other site pages — split into evenly-distributed labeled sections.
+// Mobile shows the same sidebar as an off-canvas drawer (hamburger toggle).
+const SITE_SECTIONS: { label: string, pages: { path: string, label: string, emphasize?: boolean }[] }[] = [
+  {
+    label: 'discover',
+    pages: [
+      { path: '/', label: 'home' },
+      { path: '/docs', label: 'docs', emphasize: true },
+      { path: '/about', label: 'about' },
+    ],
+  },
+  {
+    label: 'build',
+    pages: [
+      { path: '/connect', label: 'connect' },
+      { path: '/builder', label: 'builder' },
+      { path: '/playground', label: 'playground' },
+      { path: '/compare', label: 'compare' },
+      { path: '/find', label: 'find model' },
+    ],
+  },
+  {
+    label: 'models & pricing',
+    pages: [
+      { path: '/top', label: 'top models' },
+      { path: '/free-models', label: 'free models' },
+      { path: '/auction', label: 'cache auction' },
+    ],
+  },
+  {
+    label: 'monitor',
+    pages: [
+      { path: '/status', label: 'status' },
+      { path: '/health', label: 'health board' },
+      { path: '/performance', label: 'verified tps' },
+      { path: '/features', label: 'updates' },
+    ],
+  },
 ]
 
 // Simulated live ticker — in production this fetches from /api/health-board
@@ -53,16 +75,40 @@ export function Nav({
   onLogout: () => void
   children: ReactNode
 }) {
+  const [drawerOpen, setDrawerOpen] = useState(false)
+
+  // Close drawer on Escape
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setDrawerOpen(false) }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [])
+
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
-      {/* Left sidebar — vertically stacked menu */}
-      <aside style={{
-        width: 240, flexShrink: 0,
-        background: 'var(--bg)', borderRight: '1px solid var(--border)',
-        padding: '20px 0', position: 'fixed', top: 0, bottom: 0, left: 0,
-        overflowY: 'auto', zIndex: 50,
-        display: 'flex', flexDirection: 'column',
-      }}>
+      {/* Backdrop — mobile only */}
+      {drawerOpen && (
+        <div
+          onClick={() => setDrawerOpen(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 59,
+            background: 'rgba(0,0,0,0.7)',
+          }}
+        />
+      )}
+
+      {/* Left sidebar — vertically stacked menu, off-canvas on mobile */}
+      <aside
+        className={drawerOpen ? 'sidebar-open' : ''}
+        style={{
+          width: 240, flexShrink: 0,
+          background: 'var(--bg)', borderRight: '1px solid var(--border)',
+          padding: '20px 0', position: 'fixed', top: 0, bottom: 0, left: 0,
+          overflowY: 'auto', zIndex: 60,
+          display: 'flex', flexDirection: 'column',
+          transition: 'transform 0.25s ease',
+        }}
+      >
         {/* Brand */}
         <div style={{ padding: '0 20px 20px', borderBottom: '1px solid var(--border)', marginBottom: 16 }}>
           <a href="/" style={{ textDecoration: 'none', fontWeight: 800, fontSize: 20, color: 'var(--green)', textShadow: 'var(--glow-green)' }}>
@@ -96,28 +142,35 @@ export function Nav({
           ))}
         </div>
 
-        {/* Site pages — full site access */}
+        {/* Site pages — full site access, evenly distributed into sections */}
         <div style={{ padding: '0 12px', flex: 1 }}>
-          <p className="faint" style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 8, marginTop: 8, paddingLeft: 12 }}>
-            ▸ explore
-          </p>
-          {SITE_PAGES.map(p => (
-            <a
-              key={p.path}
-              href={p.path}
-              style={{
-                display: 'block',
-                color: p.emphasize ? 'var(--green)' : 'var(--text-dim)',
-                fontWeight: p.emphasize ? 700 : 400,
-                textDecoration: 'none',
-                borderLeft: p.emphasize ? '2px solid var(--green)' : '2px solid transparent',
-                padding: '7px 12px', borderRadius: 4, fontFamily: 'var(--font-mono)',
-                fontSize: 13, marginBottom: 2,
-              }}
-            >
-              {p.label}
-              {p.emphasize && <span style={{ float: 'right', opacity: 0.7 }}>★</span>}
-            </a>
+          {SITE_SECTIONS.map((section, si) => (
+            <div key={section.label}>
+              <p className="faint" style={{
+                fontSize: 9, textTransform: 'uppercase', letterSpacing: 1.5,
+                marginBottom: 8, marginTop: si === 0 ? 8 : 18, paddingLeft: 12,
+              }}>
+                ▸ {section.label}
+              </p>
+              {section.pages.map(p => (
+                <a
+                  key={p.path}
+                  href={p.path}
+                  style={{
+                    display: 'block',
+                    color: p.emphasize ? 'var(--green)' : 'var(--text-dim)',
+                    fontWeight: p.emphasize ? 700 : 400,
+                    textDecoration: 'none',
+                    borderLeft: p.emphasize ? '2px solid var(--green)' : '2px solid transparent',
+                    padding: '7px 12px', borderRadius: 4, fontFamily: 'var(--font-mono)',
+                    fontSize: 13, marginBottom: 2,
+                  }}
+                >
+                  {p.label}
+                  {p.emphasize && <span style={{ float: 'right', opacity: 0.7 }}>★</span>}
+                </a>
+              ))}
+            </div>
           ))}
         </div>
 
@@ -161,8 +214,20 @@ export function Nav({
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '12px 24px', backdropFilter: 'blur(8px)',
         }}>
-          <span className="faint" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>
-            ▸ {DASH_PAGES.find(p => p.id === page)?.label}
+          <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              className="site-hamburger"
+              onClick={() => setDrawerOpen(true)}
+              aria-label="open menu"
+              style={{
+                display: 'none', width: 36, height: 36, alignItems: 'center', justifyContent: 'center',
+                background: 'transparent', border: '1px solid var(--border-bright)', borderRadius: 4,
+                color: 'var(--green)', cursor: 'pointer', padding: 0, fontSize: 18, lineHeight: 1,
+              }}
+            >≡</button>
+            <span className="faint" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>
+              ▸ {DASH_PAGES.find(p => p.id === page)?.label}
+            </span>
           </span>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
