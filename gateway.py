@@ -50,7 +50,7 @@ import model_benchmarks as mb
 import performance_page as pp
 import user_accounts as ua
 import value_index as vi
-import studio as st
+import studio as stdo
 import srp_proposal_page as spp
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -3637,7 +3637,7 @@ model class default so partial submissions still count.</p>
 
 async def api_studio_status(request: web.Request) -> web.Response:
     """GET /api/studio/status — provider status for the Studio UI banner."""
-    return web.json_response(st.provider_status())
+    return web.json_response(stdo.provider_status())
 
 
 async def api_studio_quote(request: web.Request) -> web.Response:
@@ -3652,7 +3652,7 @@ async def api_studio_quote(request: web.Request) -> web.Response:
         markets = await GCACHE.get()
     except Exception:
         markets = []
-    q = st.quote_breakdown(model, markets)
+    q = stdo.quote_breakdown(model, markets)
     if q is None:
         return web.json_response({"error": f"no market price for {model}"}, status=404)
     return web.json_response(q)
@@ -3703,7 +3703,7 @@ async def api_studio_generate(request: web.Request) -> web.Response:
         markets = await GCACHE.get()
     except Exception:
         markets = []
-    price_usd = st.quote_price_usd(model, markets)
+    price_usd = stdo.quote_price_usd(model, markets)
     if price_usd is None:
         # No live quote — refuse rather than give away generation for free.
         return web.json_response(
@@ -3748,7 +3748,7 @@ async def api_studio_generate(request: web.Request) -> web.Response:
             "kind": kind,
             "mode": mode,
             "model": model,
-            "surplus_price_usd": round(price_usd / (1 + st.STUDIO_MARKUP_BPS / 10_000.0), 6),
+            "surplus_price_usd": round(price_usd / (1 + stdo.STUDIO_MARKUP_BPS / 10_000.0), 6),
             "price_usd": f"${price_usd:.4f}",
             "balance_usdc": _bal_usdc,
             "accepts": [{
@@ -3807,7 +3807,7 @@ async def api_studio_generate(request: web.Request) -> web.Response:
     log.info(f"studio payment settled: {tx_hash} for {model} (payer {payer[:10]}...)")
 
     try:
-        res = await st.generate(
+        res = await stdo.generate(
             kind, mode, prompt,
             image_url=str(body.get("image_url", "")),
             params=params,
@@ -3815,7 +3815,7 @@ async def api_studio_generate(request: web.Request) -> web.Response:
     except Exception as e:
         log.error(f"studio generate failed after payment {tx_hash}: {e}")
         return web.json_response({"error": f"generation failed: {e}"}, status=500)
-    creation = st.create_creation(
+    creation = stdo.create_creation(
         user_id, kind, mode, prompt,
         res["media_url"], res.get("thumb_url", ""),
         params=params,
@@ -3843,7 +3843,7 @@ async def api_studio_upload(request: web.Request) -> web.Response:
     # Sniff content type from filename
     fname = (field.filename or "").lower()
     ext = ".png" if fname.endswith(".png") else ".jpg" if fname.endswith(".jpg") or fname.endswith(".jpeg") else ".png"
-    url = st._save_media(data, ext)
+    url = stdo._save_media(data, ext)
     return web.json_response({"url": url})
 
 
@@ -3853,7 +3853,7 @@ async def api_studio_creations(request: web.Request) -> web.Response:
     if not user_id:
         return web.json_response({"error": "unauthorized"}, status=401)
     limit = int(request.query.get("limit", "60") or 60)
-    return web.json_response({"creations": st.list_creations(user_id, limit)})
+    return web.json_response({"creations": stdo.list_creations(user_id, limit)})
 
 
 async def api_studio_share(request: web.Request) -> web.Response:
@@ -3870,7 +3870,7 @@ async def api_studio_share(request: web.Request) -> web.Response:
         is_public = bool(body.get("is_public", False))
     except Exception:
         return web.json_response({"error": "invalid JSON"}, status=400)
-    rec = st.set_public(cid, user_id, is_public)
+    rec = stdo.set_public(cid, user_id, is_public)
     if rec is None:
         return web.json_response({"error": "not found"}, status=404)
     return web.json_response(rec)
@@ -3882,7 +3882,7 @@ async def api_studio_delete(request: web.Request) -> web.Response:
     if not user_id:
         return web.json_response({"error": "unauthorized"}, status=401)
     cid = int(request.match_info.get("id", "0"))
-    if not st.delete_creation(cid, user_id):
+    if not stdo.delete_creation(cid, user_id):
         return web.json_response({"error": "not found"}, status=404)
     return web.json_response({"ok": True})
 
@@ -3944,7 +3944,7 @@ async def api_studio_chat(request: web.Request) -> web.Response:
 async def studio_media(request: web.Request) -> web.Response:
     """GET /studio/media/{name} — serve a stored creation (private-by-default)."""
     name = request.match_info.get("name", "")
-    data = st._load_media(name)
+    data = stdo._load_media(name)
     if data is None:
         return web.Response(status=404)
     ct = "image/svg+xml" if name.endswith(".svg") else "image/png" if name.endswith(".png") else "image/jpeg"
@@ -3954,7 +3954,7 @@ async def studio_media(request: web.Request) -> web.Response:
 async def page_studio_share(request: web.Request) -> web.Response:
     """GET /studio/share/{token} — public view of a shared creation."""
     token = request.match_info.get("token", "")
-    rec = st.get_public(token)
+    rec = stdo.get_public(token)
     if rec is None:
         content = "<h1>Not found</h1><p class='dim'>This creation is private or does not exist.</p>"
     else:
