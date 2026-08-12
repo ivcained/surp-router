@@ -47,7 +47,7 @@ import features_page as fp
 import cache_affinity as ca
 import auction_page as ap
 import model_benchmarks as mb
-import performance_page as pp
+import performance_page as pfp
 import user_accounts as ua
 import value_index as vi
 import studio as stdo
@@ -3516,7 +3516,7 @@ async def page_performance(request: web.Request) -> web.Response:
     """Verified LLM output-TPS, TTFT, and throughput-per-dollar leaderboard."""
     ranked = mb.ranked()
     recent = mb.recent_runs(ranked[0]["model"], 10) if ranked else []
-    html = _render_html(pp.content(ranked, recent), "/performance")
+    html = _render_html(pfp.content(ranked, recent), "/performance")
     return web.Response(text=html, content_type="text/html")
 
 
