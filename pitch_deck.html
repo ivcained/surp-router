@@ -7,9 +7,9 @@
 <style>
   :root { --bg:#0a0a0a; --fg:#f5f5f5; --dim:#8a8a8a; --acc:#00ff9c; }
   * { margin:0; padding:0; box-sizing:border-box; }
-  html { scroll-behavior:smooth; }
-  body { background:var(--bg); color:var(--fg); font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",Helvetica,Arial,sans-serif; -webkit-font-smoothing:antialiased; }
-  section { min-height:100vh; min-height:100svh; display:flex; flex-direction:column; justify-content:center; padding:8vh 9vw; position:relative; }
+  html { overflow-x:auto; overflow-y:hidden; scroll-behavior:smooth; scroll-snap-type:x mandatory; }
+  body { background:var(--bg); color:var(--fg); font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",Helvetica,Arial,sans-serif; -webkit-font-smoothing:antialiased; display:flex; }
+  section { width:100vw; height:100vh; height:100svh; flex:0 0 100vw; display:flex; flex-direction:column; justify-content:center; padding:8vh 9vw; position:relative; scroll-snap-align:start; }
   .label { font-family:"JetBrains Mono",ui-monospace,Menlo,monospace; font-size:14px; letter-spacing:.28em; text-transform:uppercase; color:var(--acc); margin-bottom:3.2vh; font-weight:600; }
   h1 { font-size:clamp(40px,7.2vw,120px); font-weight:700; letter-spacing:-.03em; line-height:1.04; }
   h2 { font-size:clamp(32px,5.4vw,92px); font-weight:700; letter-spacing:-.025em; line-height:1.06; max-width:20em; }
@@ -132,7 +132,7 @@
 </section>
 
 <nav id="nav"></nav>
-<span class="kbd">← → navigate</span>
+<span class="kbd">← → navigate · swipe works too</span>
 
 <script>
   var slides = document.querySelectorAll('section');
@@ -145,13 +145,13 @@
   });
   var dots = nav.children;
   function mark() {
-    var n = Math.round(scrollY / innerHeight);
+    var n = Math.round(scrollX / innerWidth);
     for (var i = 0; i < dots.length; i++) dots[i].className = (i === n ? 'on' : '');
   }
   addEventListener('scroll', mark);
   addEventListener('keydown', function(e) {
-    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); scrollBy({top: innerHeight, behavior:'smooth'}); }
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); scrollBy({top: -innerHeight, behavior:'smooth'}); }
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); scrollBy({left: innerWidth, behavior:'smooth'}); }
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); scrollBy({left: -innerWidth, behavior:'smooth'}); }
   });
 </script>
 </body>
