@@ -2105,7 +2105,7 @@ __CONTENT__
     x402 LLM gateway · OpenAI-compatible API · pay per request in USDC on Base · cheapest AI models from the Surplus Intelligence marketplace · no account needed · no API key required
   </p>
   <p class="dim" style="margin-top:6px;font-size:10px;">
-    <a href="/x402">what is x402</a> · <a href="/x402-llm-api">x402 LLM API</a> · <a href="/x402-gateway">x402 gateway</a> · <a href="/pay-per-request-llm-api">pay-per-request LLM API</a> · <a href="/cheapest-llm-api">cheapest LLM API</a> · <a href="/free-models">free AI models</a> · <a href="/health">health board</a> · <a href="/performance">verified TPS</a> · <a href="/app">login &amp; wallet</a> · <a href="/features">features &amp; updates</a> · <a href="/auction">cache auction</a> · <a href="/cache">cache-aware routing</a> · <a href="/proposal">reward proposal</a> · <a href="/token-gating">token-gating</a>
+    <a href="/x402">what is x402</a> · <a href="/x402-llm-api">x402 LLM API</a> · <a href="/x402-gateway">x402 gateway</a> · <a href="/pay-per-request-llm-api">pay-per-request LLM API</a> · <a href="/cheapest-llm-api">cheapest LLM API</a> · <a href="/free-models">free AI models</a> · <a href="/health">health board</a> · <a href="/performance">verified TPS</a> · <a href="/app">login &amp; wallet</a> · <a href="/features">features &amp; updates</a> · <a href="/auction">cache auction</a> · <a href="/cache">cache-aware routing</a> · <a href="/proposal">reward proposal</a> · <a href="/token-gating">token-gating</a> · <a href="/pitch">pitch deck</a>
   </p>
 </footer>
 </div>
