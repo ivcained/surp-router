@@ -21,8 +21,8 @@
 | `nft_gate.py` | Token-gated access prototype (bypass x402 with sufficient token balance). |
 | `stats.py` | SQLite-backed usage stats with WAL mode and thread-safe writes. |
 | `metrics_core.py` | Live-metrics capture: per-stream `StreamSample` (TTFT, gen TPS, F1000) tagged per provider/model/request. |
-| `metrics_store.py` | Dedicated metrics SQLite DB (`SURP_METRICS_DB`, default `metrics.db`) — `metric_samples` + 5m/15m rollups, zero impact on `stats.py`/`combos.db`. |
-| `metrics_feed.py` | Token-gated live SSE feed `GET /api/metrics/stream` (`SURP_METRICS_TOKEN`). |
+| `metrics_store.py` | Dedicated metrics SQLite DB (`SURP_METRICS_DB`, default `metrics.db`) — `metric_samples` + rollups, zero impact on `stats.py`/`combos.db`. |
+| `dashboard_tps.py` | Live TPS section on `/dashboard` (TTFT / generation TPS / F1000 cards, per-model table, canvas sparkline, SSE-over-fetch client). |
 
 ## Public pages
 
@@ -125,6 +125,10 @@ client → [nginx :443] → [gateway :20130] → x402 verify → resolve combo �
 ## License
 
 MIT. See [OmniRoute attribution](data/OMNIROUTE_LICENSE.txt) for the free-tier catalog intelligence integration.
+
+## Contributors
+
+- [armchairfuturist-code](https://github.com/armchairfuturist-code) — live TTFT/TPS/F1000 metrics feed + dashboard integration (PR #1: `metrics_core.py`, `metrics_store.py`, `dashboard_tps.py`, strategy=f1000 routing).
 
 ## Links
 
