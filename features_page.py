@@ -9,6 +9,98 @@ DESC = ("Day-by-day progress on surp.ivc.lol: x402 LLM gateway, cache flywheel "
 # Milestones grouped by date (newest first). Each entry: (date, title, blurb).
 # Drawn from the actual development history of this project.
 MILESTONES: list[tuple[str, str, str]] = [
+    ("2026-08-13", "investor pitch deck live at /pitch",
+     "Apple-style 10-slide pitch deck for the Base Ecosystem Fund application, "
+     "served at https://surp.ivc.lol/pitch. One idea per slide, no bullets, "
+     "huge type on black with phosphor accents. Scrolls horizontally with "
+     "snap, arrow keys, and nav dots; one wheel notch glides one slide with "
+     "an eased animation; fixed 'back to surp' link. Print CSS exports a "
+     "clean one-slide-per-page PDF."),
+    ("2026-08-13", "merged community PR #1 — live TTFT/TPS/F1000 metrics feed",
+     "Merged and deployed the first community contribution, authored by "
+     "armchairfuturist-code (github.com/armchairfuturist-code), who asked "
+     "ivcained to merge it. Lands metrics_core.py (StreamSample + "
+     "compute_tps/compute_f1000_h with ai-speedometer parity), a write-behind "
+     "SQLite metrics store in its own metrics.db (drop-on-full, WAL, 14-day "
+     "raw retention), a stream tap that measures wall-clock TTFT to the first "
+     "token, a token-gated SSE feed at /api/metrics/stream (Bearer + "
+     "hmac.compare_digest), a live section on /dashboard (TTFT / TPS / F1000 "
+     "cards, per-model table, canvas sparkline, SSE-over-fetch client), and "
+     "optional strategy=f1000 routing that picks the best F1000 model from "
+     "live samples with fallback to cheapest. Author credited in the README "
+     "contributors section."),
+    ("2026-08-12", "import-collision fixes — chat path restored",
+     "Found and fixed two module-alias collisions that shadowed imports: "
+     "'import studio as st' overrode stats (breaking every chat completion "
+     "with AttributeError), and 'import performance_page as pp' overrode "
+     "proposal_page (breaking /proposal). Studio re-aliased to stdo, "
+     "performance_page to pfp, and a static scan now guards against any "
+     "handler using a logger it never defined."),
+    ("2026-08-11", "Surp Studio — all-in-one AI creative workspace",
+     "Launched a full creative suite at /app/studio with chat, text-to-image, "
+     "image-to-image, text-to-video, and a private gallery. Chat defaults to "
+     "surp's treasury-sponsored free tier with a pick-your-model dropdown "
+     "(surp/free, surp/free-coding, surp/free-fast); clicking the "
+     "'ask anything' placeholder focuses the input. Image pane ships 8 "
+     "one-click presets (photoreal, anime, pixel art, cyberpunk, watercolor, "
+     "3D render, line art, oil painting) plus a comfy-style advanced panel "
+     "(steps, guidance, seed, strength, aspect). Creations are private by "
+     "default with opt-in sharing via unguessable token URLs."),
+    ("2026-08-11", "studio generation on Surplus Intelligence (no FAL key needed)",
+     "Rewired the studio's image/video generation to the Surplus Intelligence "
+     "OpenAI-compatible API using the same key the resolver already uses — "
+     "verified live that venice-flux-1.1-pro and 111 other image/video models "
+     "generate real media. FAL stays as an optional fallback, mock last."),
+    ("2026-08-11", "studio generation is x402-paywalled with 5% router markup",
+     "Hard per-generation charging: studio image/video generation now runs the "
+     "same two-phase x402 flow as chat. First call returns 402 with the exact "
+     "USDC price (Surplus media-unit price + 5% router markup, floored at "
+     "1¢), the wallet signs an EIP-3009 transfer, and the gateway verifies "
+     "and settles on Base before generating. Zero-balance accounts can no "
+     "longer generate for free — the quote includes live balance and the UI "
+     "warns before signing. Creation records store paid_usdc and tx_hash."),
+    ("2026-08-11", "Surplus SettlementV2-inspired fee transparency + retry",
+     "Studied Surplus's on-chain settlement contract (0x0770...e6cc137, UUPS "
+     "proxy with feeMultiplier/flatFee) and adopted the useful parts without "
+     "copying the risky standing-allowance design: a public "
+     "GET /api/studio/quote endpoint exposes the full fee breakdown (seller "
+     "amount, markup bps, markup USD, flat fee, total) like their "
+     "calculateFee view call, and settlement now retries with exponential "
+     "backoff (5 attempts) instead of failing on the first transient error. "
+     "Kept per-request signatures, which their own docs call the safer "
+     "pattern."),
+    ("2026-08-11", "SRP token contract proposal page + deploy vote",
+     "Community proposal at /proposal/srp: should surp deploy SurpRewardToken "
+     "(SRP) as a real ERC-20 on Base? Lists the contract design (OZ ERC20 + "
+     "Permit + AccessControl + Pausable, 1B cap, immutable), benefits, risks, "
+     "and the gas-fee analysis of standing approvals vs per-request "
+     "signatures. Advisory vote with 4 options (deploy mainnet now / testnet "
+     "first / wait / don't deploy), isolated from the existing flywheel "
+     "proposal via multi-proposal voting with automatic DB migration."),
+    ("2026-08-11", "Surp Value Index (SVI) — one score per model + your own routing lens",
+     "Built a composite score (weighted geometric mean, 0-100) combining "
+     "price, verified speed, and intelligence into a single SVI per model. "
+     "Leaderboard at /svi with benchmark submission. Then added routing "
+     "modes: send surp_mode=cost|value|speed|intel|balanced or custom "
+     "surp_weights='0.3:0.4:0.3' and the gateway routes by your lens instead "
+     "of the default — verified live across all modes, with the winning "
+     "reason included in the 402 body."),
+    ("2026-08-11", "'Phosphor Terminal' redesign — one UI language for the whole site",
+     "Unified every page into a distinctive phosphor-terminal design "
+     "language: pure-black background, phosphor-green accents, JetBrains "
+     "Mono, CRT scanlines. The React dashboard got a sectioned left sidebar "
+     "(account: overview/wallet/api keys/activity/usage; explore: all site "
+     "pages with docs highlighted), active-page phosphor glow, mobile "
+     "off-canvas drawer, and a top bar with wallet widget and logout."),
+    ("2026-08-10", "Privy login + embedded wallets + full user dashboard",
+     "Added real accounts: login with email/passkeys/Farcaster via Privy, an "
+     "embedded wallet per user, and a full dashboard at /app — wallet page "
+     "with QR code and add/withdraw USDC, API keys with per-key budgets and "
+     "one-time-show secrets, live activity feed, lifetime usage table with "
+     "Basescan tx links, and recharts graphs (total spend, marketplace "
+     "savings, requests, token volume, top models, top API keys). Auth "
+     "verifies Privy JWTs locally via JWKS with a fallback REST path; user "
+     "API keys (surp_ prefix, SHA-256 hashed) authenticate Bearer requests."),
     ("2026-08-08", "verified LLM throughput benchmarks — real output TPS",
      "Built a live benchmark runner that streams real requests through surp and "
      "measures generation throughput (output tokens/second), TTFT, and "
