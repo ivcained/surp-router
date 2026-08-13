@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>surp — the cheapest way to call an AI model</title>
+<style>
+  :root { --bg:#0a0a0a; --fg:#f5f5f5; --dim:#8a8a8a; --acc:#00ff9c; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html { scroll-behavior:smooth; }
+  body { background:var(--bg); color:var(--fg); font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",Helvetica,Arial,sans-serif; -webkit-font-smoothing:antialiased; }
+  section { min-height:100vh; min-height:100svh; display:flex; flex-direction:column; justify-content:center; padding:8vh 9vw; position:relative; }
+  .label { font-family:"JetBrains Mono",ui-monospace,Menlo,monospace; font-size:14px; letter-spacing:.28em; text-transform:uppercase; color:var(--acc); margin-bottom:3.2vh; font-weight:600; }
+  h1 { font-size:clamp(40px,7.2vw,120px); font-weight:700; letter-spacing:-.03em; line-height:1.04; }
+  h2 { font-size:clamp(32px,5.4vw,92px); font-weight:700; letter-spacing:-.025em; line-height:1.06; max-width:20em; }
+  .sub { font-size:clamp(17px,1.7vw,26px); color:var(--dim); margin-top:3vh; max-width:34em; line-height:1.5; font-weight:400; }
+  .sub b { color:var(--fg); font-weight:600; }
+  .num { position:absolute; right:5vw; bottom:4vh; font-family:"JetBrains Mono",monospace; font-size:13px; color:#4a4a4a; letter-spacing:.15em; }
+  .logo { display:flex; align-items:baseline; gap:10px; }
+  .logo b { font-family:"JetBrains Mono",monospace; font-size:18px; font-weight:700; }
+  .dot { color:var(--acc); }
+  .rule { width:56px; height:3px; background:var(--acc); margin-bottom:3.2vh; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:2.4vw; margin-top:4vh; max-width:1200px; }
+  .cell { border-top:1px solid #2a2a2a; padding-top:1.6vh; }
+  .cell .k { font-family:"JetBrains Mono",monospace; font-size:13px; color:var(--acc); letter-spacing:.15em; text-transform:uppercase; }
+  .cell .v { font-size:clamp(20px,2.1vw,30px); font-weight:600; margin-top:.8vh; line-height:1.25; }
+  .cell .d { font-size:clamp(14px,1.2vw,17px); color:var(--dim); margin-top:.5vh; line-height:1.45; }
+  .big { font-size:clamp(44px,8vw,140px); font-weight:700; letter-spacing:-.03em; line-height:1.02; }
+  .steps { display:flex; gap:2vw; margin-top:4vh; flex-wrap:wrap; }
+  .step { flex:1; min-width:180px; }
+  .step .n { font-family:"JetBrains Mono",monospace; color:var(--acc); font-size:15px; }
+  .step .t { font-size:clamp(20px,2.2vw,32px); font-weight:700; margin-top:1vh; }
+  .step .d { font-size:clamp(14px,1.2vw,17px); color:var(--dim); margin-top:.6vh; line-height:1.5; }
+  nav { position:fixed; bottom:2.6vh; left:50%; transform:translateX(-50%); display:flex; gap:10px; z-index:10; }
+  nav a { width:8px; height:8px; border-radius:50%; background:#2e2e2e; display:block; }
+  nav a.on { background:var(--acc); }
+  .kbd { font-family:"JetBrains Mono",monospace; font-size:12px; color:#4a4a4a; position:absolute; left:5vw; bottom:4vh; letter-spacing:.1em; }
+  @media (max-width:720px) { .grid { grid-template-columns:1fr; } .steps { flex-direction:column; } }
+  @media print {
+    nav, .kbd { display:none; }
+    section { min-height:100vh; page-break-after:always; break-after:page; }
+    body { background:#000; }
+  }
+</style>
+</head>
+<body>
+
+<section id="s1">
+  <div class="logo"><b>surp</b><span class="dot">.</span></div>
+  <div style="flex:1;display:flex;flex-direction:column;justify-content:center;">
+    <div class="rule"></div>
+    <h1>The cheapest way<br>to call an AI model.</h1>
+    <p class="sub">Pay per request in USDC on Base. No account. No API key. No subscription.</p>
+  </div>
+  <span class="num">01 / 10</span>
+</section>
+
+<section id="s2">
+  <div class="label">The problem</div>
+  <h2>AI is paid like it's 1999.</h2>
+  <p class="sub">Subscriptions charge for months you don't use. Credit cards and billing cycles can't be operated by software. The same model costs different amounts from different sellers, changing by the hour, so everyone overpays.</p>
+  <span class="num">02 / 10</span>
+</section>
+
+<section id="s3">
+  <div class="label">The shift</div>
+  <h2>Agents will make billions of calls a day.</h2>
+  <p class="sub">Each one needs a <b>micro-payment settled in seconds</b>, without a human in the loop. The machine economy can't wait for invoices.</p>
+  <span class="num">03 / 10</span>
+</section>
+
+<section id="s4">
+  <div class="label">The product</div>
+  <h2>Call. Sign. Stream.</h2>
+  <div class="steps">
+    <div class="step"><div class="n">01</div><div class="t">Call the API</div><div class="d">OpenAI-compatible endpoint. The first response is HTTP 402 with the exact price.</div></div>
+    <div class="step"><div class="n">02</div><div class="t">Sign USDC on Base</div><div class="d">Your wallet signs an EIP-3009 transfer. No approve-and-pull, no unlimited spend.</div></div>
+    <div class="step"><div class="n">03</div><div class="t">Model streams back</div><div class="d">Settled on-chain, then the answer. Routed to whichever model is cheapest right now.</div></div>
+  </div>
+  <span class="num">04 / 10</span>
+</section>
+
+<section id="s5">
+  <div class="label">Live today, not a roadmap</div>
+  <h2>Real settlements on Base.</h2>
+  <div class="grid">
+    <div class="cell"><div class="k">Router spread</div><div class="v">5% over live cheapest</div><div class="d">Flat markup, disclosed before you sign. One cent floor.</div></div>
+    <div class="cell"><div class="k">Verified speed</div><div class="v">~100 output TPS</div><div class="d">Published benchmarks, live health board, TTFT/TPS/F1000 metrics feed.</div></div>
+    <div class="cell"><div class="k">Market coverage</div><div class="v">150+ models, 18 combos</div><div class="d">Chat, coding, reasoning, fast, vision. Route by your own lens.</div></div>
+    <div class="cell"><div class="k">Free tier</div><div class="v">Treasury sponsored</div><div class="d">surp/free and surp/free-coding work with no wallet at all.</div></div>
+  </div>
+  <span class="num">05 / 10</span>
+</section>
+
+<section id="s6">
+  <div class="label">The moat</div>
+  <h2>The cache auction.</h2>
+  <p class="sub">A repeated question costs almost nothing to serve. So surp prices it at <b>0.1 cents</b>, runs the cache as a <b>second-price auction</b>, and pays the people whose cached answers get reused. The more popular a question, the cheaper it gets for everyone. Everyone else gets slower and pricier at scale. Ours inverts.</p>
+  <span class="num">06 / 10</span>
+</section>
+
+<section id="s7">
+  <div class="label">The model</div>
+  <h2>Revenue tracks machine usage, not seats.</h2>
+  <div class="grid">
+    <div class="cell"><div class="k">Per request</div><div class="v">USDC micro-payments</div><div class="d">Settled on Base in seconds, hard per-generation charging.</div></div>
+    <div class="cell"><div class="k">Per answer</div><div class="v">0.1¢ cache hits</div><div class="d">Second-price auction on the exact-response cache.</div></div>
+    <div class="cell"><div class="k">Per user</div><div class="v">API keys + budgets</div><div class="d">Wallet dashboard, spend limits, usage graphs.</div></div>
+    <div class="cell"><div class="k">Token</div><div class="v">$SURP on Base</div><div class="d">Reward ledger for cache writers. Community vote to deploy is live.</div></div>
+  </div>
+  <span class="num">07 / 10</span>
+</section>
+
+<section id="s8">
+  <div class="label">Why Base</div>
+  <h2>Everything that touches money lives on Base.</h2>
+  <p class="sub">Every x402 settlement settles on Base. The <b>$SURP contract will deploy on Base</b>. Micro-payments only make sense where fees are near zero, and that's Base. surp is onchain payments infrastructure for AI.</p>
+  <span class="num">08 / 10</span>
+</section>
+
+<section id="s9">
+  <div class="label">Why BEF</div>
+  <h2>The fund for the next financial system.</h2>
+  <p class="sub">BEF backs onchain infrastructure and believes global finance is the killer use case for blockchains. The machine economy is the next frontier of that: billions of agent calls, each a USDC payment on Base. surp is the rail that makes it cheap enough to happen. Shipped, settling, and community-governed.</p>
+  <span class="num">09 / 10</span>
+</section>
+
+<section id="s10">
+  <div class="big">Machines pay<br>like machines.</div>
+  <p class="sub"><b>surp.ivc.lol</b></p>
+  <span class="num">10 / 10</span>
+</section>
+
+<nav id="nav"></nav>
+<span class="kbd">← → navigate</span>
+
+<script>
+  var slides = document.querySelectorAll('section');
+  var nav = document.getElementById('nav');
+  slides.forEach(function(_, i) {
+    var a = document.createElement('a');
+    a.href = '#s' + (i + 1);
+    if (i === 0) a.className = 'on';
+    nav.appendChild(a);
+  });
+  var dots = nav.children;
+  function mark() {
+    var n = Math.round(scrollY / innerHeight);
+    for (var i = 0; i < dots.length; i++) dots[i].className = (i === n ? 'on' : '');
+  }
+  addEventListener('scroll', mark);
+  addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); scrollBy({top: innerHeight, behavior:'smooth'}); }
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); scrollBy({top: -innerHeight, behavior:'smooth'}); }
+  });
+</script>
+</body>
+</html>

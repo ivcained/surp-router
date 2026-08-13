@@ -53,6 +53,14 @@ import value_index as vi
 import studio as stdo
 import srp_proposal_page as spp
 
+# Investor pitch deck (self-contained HTML, served at /pitch).
+_DECK_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pitch_deck.html")
+try:
+    with open(_DECK_PATH, "r", encoding="utf-8") as _f:
+        _DECK_HTML = _f.read()
+except Exception:
+    _DECK_HTML = ""
+
 # ──────────────────────────────────────────────────────────────────────────────
 # x402 imports
 # ──────────────────────────────────────────────────────────────────────────────
@@ -535,6 +543,15 @@ def _render_html(content: str, path: str = "/") -> str:
     breadcrumb = meta["title"].split(" — ")[0].lower().strip()
     html = html.replace("__BREADCRUMB__", breadcrumb)
     return html
+
+
+async def page_pitch(request: web.Request) -> web.Response:
+    """Serve the investor pitch deck (Apple-style, self-contained HTML)."""
+    try:
+        html = _DECK_HTML
+    except Exception:
+        html = "<!DOCTYPE html><html><body><h1>deck unavailable</h1></body></html>"
+    return web.Response(text=html, content_type="text/html")
 
 
 async def page_home(request: web.Request) -> web.Response:
@@ -4366,7 +4383,7 @@ async def serve_robots(request: web.Request) -> web.Response:
 async def serve_sitemap(request: web.Request) -> web.Response:
     import time as _time
     lastmod = _time.strftime("%Y-%m-%d", _time.gmtime())
-    pages = ["/", "/docs", "/connect", "/builder", "/about", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/token-gating", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api"]
+    pages = ["/", "/docs", "/connect", "/builder", "/about", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/token-gating", "/pitch", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api"]
     urls = ""
     for p in pages:
         priority = "1.0" if p == "/" else "0.8" if p in ("/docs", "/connect") else "0.6"
@@ -4487,6 +4504,7 @@ def build_app() -> web.Application:
     app.on_startup.append(_metrics_writer_loop)
     app.on_cleanup.append(_metrics_writer_stop)
     app.router.add_get("/", page_home)
+    app.router.add_get("/pitch", page_pitch)
     app.router.add_get("/api/metrics/stream", api_metrics_stream)
     app.router.add_get("/docs", page_docs)
     app.router.add_get("/about", page_about)
