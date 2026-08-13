@@ -35,9 +35,12 @@
   nav a { width:8px; height:8px; border-radius:50%; background:#2e2e2e; display:block; }
   nav a.on { background:var(--acc); }
   .kbd { font-family:"JetBrains Mono",monospace; font-size:12px; color:#4a4a4a; position:absolute; left:5vw; bottom:4vh; letter-spacing:.1em; }
+  .back { position:fixed; top:3.4vh; left:5vw; z-index:20; font-family:"JetBrains Mono",monospace; font-size:13px; color:var(--dim); text-decoration:none; letter-spacing:.06em; }
+  .back:hover { color:var(--acc); }
+  .back::before { content:"← "; color:var(--acc); }
   @media (max-width:720px) { .grid { grid-template-columns:1fr; } .steps { flex-direction:column; } }
   @media print {
-    nav, .kbd { display:none; }
+    nav, .kbd, .back { display:none; }
     section { min-height:100vh; page-break-after:always; break-after:page; }
     body { background:#000; }
   }
@@ -132,6 +135,7 @@
 </section>
 
 <nav id="nav"></nav>
+<a class="back" href="https://surp.ivc.lol" aria-label="back to surp homepage">back to surp</a>
 <span class="kbd">scroll down or ← → to advance</span>
 
 <script>
