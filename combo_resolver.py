@@ -22,6 +22,8 @@ import sqlite3
 import time
 from typing import Any, Optional
 
+import metrics_store
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Price units
 #
@@ -235,7 +237,32 @@ def pool_for(combo: str, markets: list[dict]) -> list[dict]:
     return sorted(pool, key=price_of)
 
 
-def resolve(combo: str, markets: list[dict]) -> tuple[Optional[str], str, float, int]:
+def _f1000_winner(pool: list[dict]) -> Optional[dict]:
+    """Pick the pool member with the best (lowest) F1000 in the metrics store.
+
+    Best-effort and never raising: on missing data, an empty DB, samples
+    below the min_samples threshold, or a metrics pick that is not part of
+    this pool, returns None and the caller keeps the default cheapest pick.
+    """
+    try:
+        best = metrics_store.best_f1000(
+            model_class=class_of(pool[0]), min_samples=50, window_s=86400
+        )
+    except Exception:
+        return None
+    if not best:
+        return None
+    want = str(best).lower()
+    for m in pool:
+        name = str(m.get("model", "")).lower()
+        if name == want or name.startswith(want + "/"):
+            return m
+    return None
+
+
+def resolve(
+    combo: str, markets: list[dict], strategy: Optional[str] = None
+) -> tuple[Optional[str], str, float, int]:
     """Resolve a combo to the cheapest concrete model.
 
     Returns (model_id, debug_line, price_per_1m_atomic, pool_size).
@@ -247,10 +274,16 @@ def resolve(combo: str, markets: list[dict]) -> tuple[Optional[str], str, float,
             return None, f"unknown custom combo: {combo}", 0.0, 0
         return None, f"no models match {combo}", 0.0, 0
     winner = pool[0]
+    suffix = ""
+    if strategy == "f1000":
+        pick = _f1000_winner(pool)
+        if pick is not None and pick is not pool[0]:
+            winner = pick
+            suffix = " (strategy=f1000: best F1000)"
     p = price_of(winner)
     return (
         winner["model"],
-        f"{combo} -> {winner['model']} (${p / PRICE_DIVISOR:.4f}/1M, pool={len(pool)})",
+        f"{combo} -> {winner['model']} (${p / PRICE_DIVISOR:.4f}/1M, pool={len(pool)}){suffix}",
         p,
         len(pool),
     )

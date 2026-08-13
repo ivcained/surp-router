@@ -20,6 +20,9 @@
 | `benchmark_runner.py` | Live benchmark runner that streams real requests and records generation throughput. |
 | `nft_gate.py` | Token-gated access prototype (bypass x402 with sufficient token balance). |
 | `stats.py` | SQLite-backed usage stats with WAL mode and thread-safe writes. |
+| `metrics_core.py` | Live-metrics capture: per-stream `StreamSample` (TTFT, gen TPS, F1000) tagged per provider/model/request. |
+| `metrics_store.py` | Dedicated metrics SQLite DB (`SURP_METRICS_DB`, default `metrics.db`) — `metric_samples` + 5m/15m rollups, zero impact on `stats.py`/`combos.db`. |
+| `metrics_feed.py` | Token-gated live SSE feed `GET /api/metrics/stream` (`SURP_METRICS_TOKEN`). |
 
 ## Public pages
 
@@ -89,6 +92,18 @@ surp/direct/<model-id> → pin one specific model (for benchmarks / pinned SLAs)
 5. Gateway verifies the signature via the facilitator, settles on-chain, streams the response.
 
 No account, no API key, no prepaid balance. Each request is a separate micropayment.
+
+## Metrics (live TPS feed)
+
+Per-request TTFT / generation TPS / F1000 are streamed live from the gateway and stored in a **separate** metrics DB — the existing `stats.py`/`combos.db` are untouched.
+
+| Env var | Default | Meaning |
+|---|---|---|
+| `SURP_METRICS_ENABLED` | `1` (ON) | Master switch for the metrics pipeline (tap, writer, SSE feed). Set `0` to disable. |
+| `SURP_METRICS_TOKEN` | unset | Bearer token for `GET /api/metrics/stream`. Unset ⇒ endpoint returns 404 (not public). |
+| `SURP_METRICS_DB` | `metrics.db` | Path to the metrics SQLite DB (`metric_samples` + rollups). |
+
+Live feed: `GET /api/metrics/stream` with `Authorization: Bearer <SURP_METRICS_TOKEN>` (constant-time compare). Server-Sent Events, one `metric` event per request. See `docs/proposals/tps-live-metrics/README.md`.
 
 ## Tests
 
