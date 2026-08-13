@@ -7,7 +7,7 @@
 <style>
   :root { --bg:#0a0a0a; --fg:#f5f5f5; --dim:#8a8a8a; --acc:#00ff9c; }
   * { margin:0; padding:0; box-sizing:border-box; }
-  html { overflow-x:auto; overflow-y:hidden; scroll-behavior:smooth; scroll-snap-type:x mandatory; }
+  html { overflow-x:auto; overflow-y:hidden; scroll-snap-type:x mandatory; }
   body { background:var(--bg); color:var(--fg); font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",Helvetica,Arial,sans-serif; -webkit-font-smoothing:antialiased; display:flex; }
   section { width:100vw; height:100vh; height:100svh; flex:0 0 100vw; display:flex; flex-direction:column; justify-content:center; padding:8vh 9vw; position:relative; scroll-snap-align:start; }
   .label { font-family:"JetBrains Mono",ui-monospace,Menlo,monospace; font-size:14px; letter-spacing:.28em; text-transform:uppercase; color:var(--acc); margin-bottom:3.2vh; font-weight:600; }
@@ -132,7 +132,7 @@
 </section>
 
 <nav id="nav"></nav>
-<span class="kbd">← → navigate · swipe works too</span>
+<span class="kbd">scroll down or ← → to advance</span>
 
 <script>
   var slides = document.querySelectorAll('section');
@@ -141,6 +141,7 @@
     var a = document.createElement('a');
     a.href = '#s' + (i + 1);
     if (i === 0) a.className = 'on';
+    a.addEventListener('click', function(e) { e.preventDefault(); scrollTo({left: i * innerWidth, behavior: 'smooth'}); });
     nav.appendChild(a);
   });
   var dots = nav.children;
@@ -153,6 +154,15 @@
     if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); scrollBy({left: innerWidth, behavior:'smooth'}); }
     if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); scrollBy({left: -innerWidth, behavior:'smooth'}); }
   });
+  // Vertical wheel scrolls horizontally: down goes left (next slide),
+  // up goes right (previous). Native horizontal wheel/trackpad still works.
+  addEventListener('wheel', function(e) {
+    var dy = Math.abs(e.deltaY), dx = Math.abs(e.deltaX);
+    if (dy > dx && dy > 0) {
+      e.preventDefault();
+      scrollBy({left: e.deltaY, behavior: 'auto'});
+    }
+  }, { passive: false });
 </script>
 </body>
 </html>
