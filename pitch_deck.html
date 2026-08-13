@@ -7,7 +7,7 @@
 <style>
   :root { --bg:#0a0a0a; --fg:#f5f5f5; --dim:#8a8a8a; --acc:#00ff9c; }
   * { margin:0; padding:0; box-sizing:border-box; }
-  html { overflow-x:auto; overflow-y:hidden; scroll-snap-type:x mandatory; }
+  html { overflow-x:auto; overflow-y:hidden; }
   body { background:var(--bg); color:var(--fg); font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",Helvetica,Arial,sans-serif; -webkit-font-smoothing:antialiased; display:flex; }
   section { width:100vw; height:100vh; height:100svh; flex:0 0 100vw; display:flex; flex-direction:column; justify-content:center; padding:8vh 9vw; position:relative; scroll-snap-align:start; }
   .label { font-family:"JetBrains Mono",ui-monospace,Menlo,monospace; font-size:14px; letter-spacing:.28em; text-transform:uppercase; color:var(--acc); margin-bottom:3.2vh; font-weight:600; }
@@ -141,7 +141,7 @@
     var a = document.createElement('a');
     a.href = '#s' + (i + 1);
     if (i === 0) a.className = 'on';
-    a.addEventListener('click', function(e) { e.preventDefault(); scrollTo({left: i * innerWidth, behavior: 'smooth'}); });
+    a.addEventListener('click', function(e) { e.preventDefault(); go(i * innerWidth); });
     nav.appendChild(a);
   });
   var dots = nav.children;
@@ -150,17 +150,51 @@
     for (var i = 0; i < dots.length; i++) dots[i].className = (i === n ? 'on' : '');
   }
   addEventListener('scroll', mark);
+
+  // ── eased glide: one wheel notch = one slow smooth slide advance ──
+  var targetX = scrollX;
+  var raf = null;
+  var wheelAcc = 0;      // accumulated raw wheel delta
+  var wheelLock = 0;     // timestamp: cooldown between advances
+  function maxX() { return document.documentElement.scrollWidth - innerWidth; }
+  function clampX(x) { return Math.max(0, Math.min(x, maxX())); }
+  function snapX(x) { return Math.round(x / innerWidth) * innerWidth; }
+  function go(x) {
+    targetX = clampX(x);
+    if (!raf) raf = requestAnimationFrame(tick);
+  }
+  function tick() {
+    var cur = scrollX;
+    var diff = targetX - cur;
+    if (Math.abs(diff) < 4) {
+      scrollTo({ left: targetX, behavior: 'auto' });  // close the last few px
+      raf = null;
+      return;
+    }
+    // ease toward target: ~14% of remaining distance per frame
+    scrollTo({ left: cur + diff * 0.14, behavior: 'auto' });
+    raf = requestAnimationFrame(tick);
+  }
+
   addEventListener('keydown', function(e) {
-    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); scrollBy({left: innerWidth, behavior:'smooth'}); }
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); scrollBy({left: -innerWidth, behavior:'smooth'}); }
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); go(snapX(scrollX) + innerWidth); }
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); go(snapX(scrollX) - innerWidth); }
   });
-  // Vertical wheel scrolls horizontally: down goes left (next slide),
-  // up goes right (previous). Native horizontal wheel/trackpad still works.
+  // Vertical wheel: down advances one slide (left), up goes back (right).
+  // Each notch (~100px) is one slide, glided slowly with a cooldown so
+  // trackpad firehose never races past. Native horizontal wheel still works.
   addEventListener('wheel', function(e) {
     var dy = Math.abs(e.deltaY), dx = Math.abs(e.deltaX);
     if (dy > dx && dy > 0) {
       e.preventDefault();
-      scrollBy({left: e.deltaY, behavior: 'auto'});
+      var now = performance.now();
+      if (now - wheelLock < 200) return;      // cooldown between advances
+      wheelAcc += e.deltaY;
+      if (Math.abs(wheelAcc) < 50) return;    // need ~one notch of intent
+      var dir = wheelAcc > 0 ? 1 : -1;
+      wheelAcc = 0;
+      wheelLock = now;
+      go(snapX(scrollX) + dir * innerWidth);
     }
   }, { passive: false });
 </script>
