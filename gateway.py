@@ -1924,6 +1924,7 @@ _HTML_BASE = r"""<!DOCTYPE html>
     display: flex; gap: 32px; width: max-content; white-space: nowrap;
     padding-left: 14px; animation: market-scroll 42s linear infinite;
   }
+  .market-ticker:hover .market-track { animation-play-state: paused; }
   .market-track span { font-size: 11px; color: #555; }
   .market-track b { color: var(--accent); font-weight: 500; }
   .market-track i { color: var(--border-bright); font-style: normal; }
