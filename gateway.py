@@ -52,6 +52,7 @@ import user_accounts as ua
 import value_index as vi
 import studio as stdo
 import srp_proposal_page as spp
+import system_design_page as sdp
 
 # Investor pitch deck (self-contained HTML, served at /pitch).
 _DECK_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pitch_deck.html")
@@ -478,9 +479,17 @@ PAGE_META = {
         "title": "Cheapest LLM API — Live LLM API Pricing, Ranked | surp.ivc.lol",
         "desc": "The cheapest LLM API, ranked with live prices. Compare 150+ AI models across providers, see who's cheapest right now, and pay per request in USDC.",
     },
+    "/proposal/srp": {
+        "title": "SRP token proposal — deploy SurpRewardToken on Base? | surp",
+        "desc": "Community proposal to deploy the SRP reward token as a real ERC-20 on Base. Benefits, risks, gas analysis, and an advisory vote.",
+    },
     "/proposal": {
         "title": "Proposal: Cache Flywheel Rewards — vote on SRP's future | surp.ivc.lol",
         "desc": "Should surp.ivc.lol keep cache rewards off-chain, deploy a Juicebox treasury, launch a RevNet revenue-backed token, or go hybrid? Read the ELI5 proposal and vote.",
+    },
+    "/system-design": {
+        "title": "surp system design — architecture & v2 proposal | surp.ivc.lol",
+        "desc": "How the cheapest LLM API is built: x402 payment path, cache flywheel, routing, settlement, fault isolation, back-of-envelope numbers, and a v2 batched-settlement proposal.",
     },
     "/token-gating": {
         "title": "Token-Gated API Access — NFT eligibility for surp.ivc.lol",
@@ -2006,6 +2015,7 @@ _HTML_BASE = r"""<!DOCTYPE html>
       <a href="/">home</a>
       <a href="/docs" class="docs-link">docs ★</a>
       <a href="/about">about</a>
+      <a href="/system-design">system design</a>
       <a href="/proposal/srp">SRP proposal</a>
 
       <div class="site-menu-label">▸ build</div>
@@ -2347,6 +2357,7 @@ __ROWS__
   <div class="card"><div class="num">1</div><div class="lbl">the protocol</div><p><a href="/x402">What is x402?</a> — the HTTP 402 payment protocol, explained simply.</p></div>
   <div class="card"><div class="num">2</div><div class="lbl">the api</div><p><a href="/x402-llm-api">x402 LLM API</a> — pay-per-request AI inference, OpenAI-compatible.</p></div>
   <div class="card"><div class="num">3</div><div class="lbl">the prices</div><p><a href="/cheapest-llm-api">Cheapest LLM API</a> — live pricing ranked, updated every minute.</p></div>
+  <div class="card"><div class="num">4</div><div class="lbl">the architecture</div><p><a href="/system-design">System design</a> — how surp is built, the trade-offs, and the v2 proposal.</p></div>
 </div>
 <a class="cta" href="/playground" style="border-color: var(--fg-dim); color: var(--fg-dim);">try the playground</a>
 <p class="dim" style="margin-top:16px;font-size:12px;">
@@ -3469,6 +3480,18 @@ async def page_srp_proposal(request: web.Request) -> web.Response:
     return web.Response(text=html, content_type="text/html")
 
 
+async def page_system_design(request: web.Request) -> web.Response:
+    """System-design primer: architecture, decisions, numbers, v2 proposal."""
+    try:
+        _st = st.global_stats()
+    except Exception:
+        _st = {}
+    live = {"stats": _st}
+    content = sdp.content(live)
+    html = _render_html(content, "/system-design")
+    return web.Response(text=html, content_type="text/html")
+
+
 async def api_cast_vote(request: web.Request) -> web.Response:
     """POST /api/vote — cast or change an advisory vote.
 
@@ -4392,7 +4415,7 @@ async def serve_robots(request: web.Request) -> web.Response:
 async def serve_sitemap(request: web.Request) -> web.Response:
     import time as _time
     lastmod = _time.strftime("%Y-%m-%d", _time.gmtime())
-    pages = ["/", "/docs", "/connect", "/builder", "/about", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/token-gating", "/pitch", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api"]
+    pages = ["/", "/docs", "/connect", "/builder", "/about", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api"]
     urls = ""
     for p in pages:
         priority = "1.0" if p == "/" else "0.8" if p in ("/docs", "/connect") else "0.6"
@@ -4550,6 +4573,7 @@ def build_app() -> web.Application:
     app.router.add_get("/cache", page_cache)
     app.router.add_get("/proposal", page_proposal)
     app.router.add_get("/proposal/srp", page_srp_proposal)
+    app.router.add_get("/system-design", page_system_design)
     app.router.add_get("/api/votes", api_vote_results)
     app.router.add_post("/api/vote", api_cast_vote)
     app.router.add_get("/token-gating", page_token_gating)
