@@ -1809,6 +1809,14 @@ _HTML_BASE = r"""<!DOCTYPE html>
   .hero-terminal::-webkit-scrollbar { width: 4px; }
   .hero-terminal::-webkit-scrollbar-track { background: transparent; }
   .hero-terminal::-webkit-scrollbar-thumb { background: var(--accent-dim); }
+
+  /* Global custom scrollbar — matches the React app (/app) so every page
+     has the same phosphor scrollbar instead of the browser default. */
+  *::-webkit-scrollbar { width: 8px; height: 8px; }
+  *::-webkit-scrollbar-track { background: var(--bg); }
+  *::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 4px; }
+  *::-webkit-scrollbar-thumb:hover { background: var(--accent-dim); }
+  * { scrollbar-width: thin; scrollbar-color: var(--border-bright) var(--bg); }
   .hero-line { white-space: pre-wrap; }
   .hero-line.prompt { color: var(--accent); }
   .hero-line.dim { color: var(--fg-dim); }
