@@ -4,6 +4,10 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, CartesianGrid,
 } from 'recharts'
+import Card from '@mui/material/Card'
+import Chip from '@mui/material/Chip'
+import LinearProgress from '@mui/material/LinearProgress'
+import Typography from '@mui/material/Typography'
 
 interface Stats {
   total_spend_cents: number
@@ -47,9 +51,10 @@ export function Dashboard({ walletAddress, balances, onNavigate }: {
 
   if (loading) {
     return (
-      <div className="card" style={{ textAlign: 'center' }}>
-        <span className="pulse-dot" /> <span className="dim">syncing dashboard data...</span>
-      </div>
+      <Card sx={{ p: 3, textAlign: 'center' }}>
+        <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>syncing dashboard data...</Typography>
+        <LinearProgress />
+      </Card>
     )
   }
 
@@ -70,43 +75,48 @@ export function Dashboard({ walletAddress, balances, onNavigate }: {
         </p>
       </div>
 
-      {/* ── Bento grid: primary stat cards ────────────────────────────── */}
+      {/* ── Bento grid: primary stat cards (MUI Card on the phosphor theme) ── */}
       <div className="bento">
         {/* Total spend — big card */}
-        <div className="card span-2" style={{ padding: 24 }}>
-          <p className="faint" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 8 }}>
+        <Card className="span-2" sx={{ p: 3, background: '#0d0d0d' }}>
+          <Typography variant="caption" sx={{ textTransform: 'uppercase', letterSpacing: '0.12em' }}>
             total spend
-          </p>
-          <p style={{
+          </Typography>
+          <Typography sx={{
             fontSize: 36, fontWeight: 800, color: 'var(--green)',
-            textShadow: 'var(--glow-green)', fontFamily: 'var(--font-mono)',
+            textShadow: 'var(--glow-green)', fontFamily: 'var(--font-mono)', mt: 0.5,
           }}>
             {fmtUSD(stats?.total_spend_cents || 0)}
-          </p>
-          <p className="faint" style={{ fontSize: 11, marginTop: 4 }}>settled in usdc on base</p>
-        </div>
+          </Typography>
+          <Typography variant="caption" display="block" sx={{ mt: 0.5 }}>settled in usdc on base</Typography>
+        </Card>
 
         {/* USDC balance */}
-        <div className="card" style={{ padding: 24 }}>
-          <p className="faint" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 8 }}>
+        <Card sx={{ p: 3, background: '#0d0d0d' }}>
+          <Typography variant="caption" sx={{ textTransform: 'uppercase', letterSpacing: '0.12em' }}>
             wallet balance
-          </p>
-          <p style={{ fontSize: 28, fontWeight: 800, color: 'var(--cyan)', textShadow: 'var(--glow-cyan)' }}>
+          </Typography>
+          <Typography sx={{
+            fontSize: 28, fontWeight: 800, color: 'var(--cyan)',
+            textShadow: 'var(--glow-cyan)', fontFamily: 'var(--font-mono)', mt: 0.5,
+          }}>
             ${usdcBalance}
-          </p>
-          <p className="faint" style={{ fontSize: 11, marginTop: 4 }}>usdc · {shortAddr(walletAddress)}</p>
-        </div>
+          </Typography>
+          <Typography variant="caption" display="block" sx={{ mt: 0.5 }}>
+            usdc · <Chip label={shortAddr(walletAddress)} size="small" variant="outlined" sx={{ height: 20, fontSize: 10.5 }} />
+          </Typography>
+        </Card>
 
         {/* Marketplace savings */}
-        <div className="card" style={{ padding: 24, border: '1px solid rgba(0,255,156,0.2)' }}>
-          <p className="faint" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 8 }}>
+        <Card sx={{ p: 3, background: '#0d0d0d', borderColor: 'rgba(0,255,156,0.25)' }}>
+          <Typography variant="caption" sx={{ textTransform: 'uppercase', letterSpacing: '0.12em' }}>
             you saved
-          </p>
-          <p style={{ fontSize: 28, fontWeight: 800, color: 'var(--green)' }}>
+          </Typography>
+          <Typography sx={{ fontSize: 28, fontWeight: 800, color: 'var(--green)', mt: 0.5 }}>
             {fmtUSD(stats?.marketplace_savings_cents || 0)}
-          </p>
-          <p className="faint" style={{ fontSize: 11, marginTop: 4 }}>vs openai pricing</p>
-        </div>
+          </Typography>
+          <Typography variant="caption" display="block" sx={{ mt: 0.5 }}>vs openai pricing</Typography>
+        </Card>
       </div>
 
       {/* ── Secondary stat cards row ─────────────────────────────────── */}

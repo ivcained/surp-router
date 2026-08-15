@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuthFetch, fmtTime } from '../lib'
+import Select from '@mui/material/Select'
+import MenuItem from '@mui/material/MenuItem'
 
 type StudioTab = 'chat' | 'image' | 'video' | 'gallery'
 interface Msg { role: 'user' | 'assistant'; content: string }
@@ -185,7 +187,6 @@ function ChatPane({ authFetch }: { authFetch: (u: string, o?: any) => Promise<Re
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [model, setModel] = useState(CHAT_MODELS[0].id)
-  const [open, setOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const endRef = useRef<HTMLDivElement>(null)
 
@@ -213,51 +214,27 @@ function ChatPane({ authFetch }: { authFetch: (u: string, o?: any) => Promise<Re
     }
   }
 
-  const selected = CHAT_MODELS.find(m => m.id === model) || CHAT_MODELS[0]
-
   return (
     <div className="card" style={{ display: 'flex', flexDirection: 'column', minHeight: 480 }}>
-      {/* Model picker — click-to-open dropdown (Open-Generative-AI style) */}
-      <div style={{ position: 'relative', marginBottom: 10 }}>
-        <button
-          onClick={() => setOpen(!open)}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-            background: 'rgba(0,255,156,0.04)', border: '1px solid var(--border)',
-            color: 'var(--fg)', borderRadius: 6, padding: '8px 12px', cursor: 'pointer',
-            fontFamily: 'var(--font-mono)', fontSize: 13, textAlign: 'left',
-          }}
-        >
-          <span style={{ color: 'var(--green)' }}>▣</span>
-          <span style={{ fontWeight: 700, color: 'var(--green)' }}>{selected.label}</span>
-          <span className="dim" style={{ fontSize: 11, flex: 1 }}>{selected.desc}</span>
-          <span style={{ color: 'var(--text-dim)', fontSize: 11 }}>{open ? '▲' : '▼'}</span>
-        </button>
-        {open && (
-          <div style={{
-            position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
-            background: '#0a0f0b', border: '1px solid var(--border-bright)',
-            borderRadius: 6, marginTop: 4, overflow: 'hidden', boxShadow: '0 8px 30px rgba(0,0,0,0.6)',
-          }}>
-            {CHAT_MODELS.map(m => (
-              <button
-                key={m.id}
-                onClick={() => { setModel(m.id); setOpen(false) }}
-                style={{
-                  display: 'block', width: '100%', textAlign: 'left', cursor: 'pointer',
-                  background: m.id === model ? 'rgba(0,255,156,0.08)' : 'transparent',
-                  border: 'none', borderBottom: '1px solid var(--border)',
-                  color: 'var(--fg)', padding: '10px 12px', fontFamily: 'var(--font-mono)', fontSize: 13,
-                }}
-              >
-                <span style={{ color: m.id === model ? 'var(--green)' : 'var(--fg)' }}>{m.label}</span>
-                {m.id === model && <span style={{ color: 'var(--green)', marginLeft: 8 }}>●</span>}
-                <span className="dim" style={{ display: 'block', fontSize: 11, marginTop: 2 }}>{m.desc}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* Model picker — MUI Select on the phosphor theme (states/keys handled by MUI) */}
+      <Select
+        value={model}
+        onChange={e => setModel(e.target.value as string)}
+        size="small"
+        fullWidth
+        sx={{
+          mb: 1.25,
+          '& .MuiSelect-select': { display: 'flex', alignItems: 'center', gap: 1, py: 0.9 },
+        }}
+        MenuProps={{ slotProps: { paper: { sx: { backgroundColor: '#0a0f0b', border: '1px solid #2e2e2e' } } } }}
+      >
+        {CHAT_MODELS.map(m => (
+          <MenuItem key={m.id} value={m.id} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', py: 1 }}>
+            <span style={{ fontWeight: 700, color: m.id === model ? 'var(--green)' : 'var(--fg)' }}>{m.label}</span>
+            <span className="dim" style={{ fontSize: 11 }}>{m.desc}</span>
+          </MenuItem>
+        ))}
+      </Select>
       <p className="faint" style={{ margin: '0 0 8px', fontSize: 11 }}>▸ chat — treasury-sponsored · no wallet needed</p>
       <div style={{ flex: 1, overflowY: 'auto', maxHeight: 360, padding: 12, border: '1px solid var(--border)', borderRadius: 6, marginBottom: 12, background: 'rgba(0,0,0,0.3)' }}>
         {messages.length === 0 && (

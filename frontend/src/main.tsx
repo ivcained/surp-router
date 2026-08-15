@@ -1,8 +1,11 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { PrivyProvider } from '@privy-io/react-auth'
+import { ThemeProvider } from '@mui/material/styles'
+import CssBaseline from '@mui/material/CssBaseline'
 import { base } from 'viem/chains'
 import App from './App'
+import { theme } from './theme'
 
 // Privy App ID — PUBLIC value (safe to embed in frontend code).
 // The App Secret lives in .env.privy on the server and is never exposed.
@@ -36,7 +39,10 @@ root.render(
         // The dashboard config controls which methods appear.
       }}
     >
-      <App />
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <App />
+      </ThemeProvider>
     </PrivyProvider>
   </React.StrictMode>,
 )
