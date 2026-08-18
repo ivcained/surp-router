@@ -2228,7 +2228,7 @@ document.addEventListener("DOMContentLoaded", function() {
 _HOME_CONTENT = r"""
 <h1>The cheapest LLM API on the internet.</h1>
 <p class="dim prompt">cat surp.ivc.lol | grep -i "what is this"</p>
-<p>surp.ivc.lol is an <b>x402 LLM gateway</b> — an <b>OpenAI-compatible API</b> that pays per request in <b>USDC on Base</b>. No account, no API key, no subscription. You pay per request in <b>USDC on Base</b> — no account, no API key, no subscription. Behind the scenes we aggregate <b>Surplus Intelligence</b> (itself a marketplace of competing sellers) and route every request to whichever model is <b>cheapest right now</b> for the class of work you asked for.</p>
+<p>surp.ivc.lol is an <b>x402 LLM gateway</b> — an <b>OpenAI-compatible API</b> that pays per request in <b>USDC on Base</b>, no account, no API key, no subscription. Behind the scenes we aggregate <b>Surplus Intelligence</b> (itself a marketplace of competing sellers) and route every request to whichever model is <b>cheapest right now</b> for the class of work you asked for.</p>
 <p class="dim">You ask for <code>surp/best-coding</code>. We fetch live Surplus market prices, find the cheapest coding-class model at this instant, forward your request there, and stream the answer back. The price you pay is the Surplus spot price + a small markup, settled on-chain in micropennies.</p>
 
 
