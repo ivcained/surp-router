@@ -2226,6 +2226,12 @@ document.addEventListener("DOMContentLoaded", function() {
 """
 
 _HOME_CONTENT = r"""
+<p class="dim" style="margin:0 0 10px;font-size:12px;">
+<span class="badge" style="margin-left:0;">vs. going direct</span>
+surplus is already cheap — surp makes repeats <b>10x cheaper</b>: cached answers cost
+<b>$0.001</b> instead of the 1¢ floor, you pick the <b>class of work</b> instead of a model,
+and cache writers earn <b>SRP</b>. <a href="/cache">the cache engine &raquo;</a>
+</p>
 <h1>The cheapest LLM API on the internet.</h1>
 <p class="dim prompt">cat surp.ivc.lol | grep -i "what is this"</p>
 <p>surp.ivc.lol is an <b>x402 LLM gateway</b> — an <b>OpenAI-compatible API</b> that pays per request in <b>USDC on Base</b>, no account, no API key, no subscription. Behind the scenes we aggregate <b>Surplus Intelligence</b> (itself a marketplace of competing sellers) and route every request to whichever model is <b>cheapest right now</b> for the class of work you asked for.</p>
