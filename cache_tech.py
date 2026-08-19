@@ -17,8 +17,16 @@ from pathlib import Path
 from typing import Any, Optional
 
 
+CACHE_KEY_IGNORE_FIELDS = {
+    # Routing and gateway controls do not change deterministic output content.
+    "surp_bypass_cache", "surp_mode", "surp_weights", "surp_strategy",
+    "max_price_per_1m", "provider", "provider_url", "provider_base_url",
+}
+
+
 def _canonical_request(payload: dict[str, Any]) -> bytes:
-    return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    normalized = {k: v for k, v in payload.items() if k not in CACHE_KEY_IGNORE_FIELDS}
+    return json.dumps(normalized, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
 
 def request_cache_key(payload: dict[str, Any]) -> str:
@@ -163,18 +171,24 @@ class ResponseCache:
         with self._lock:
             metrics = self._conn.execute("SELECT * FROM cache_metrics WHERE singleton=1").fetchone()
             live = self._conn.execute(
-                "SELECT COUNT(*) AS n,COALESCE(SUM(hits),0) AS entry_hits FROM response_cache WHERE expires_at>?",
+                "SELECT COUNT(*) AS n,COALESCE(SUM(hits),0) AS entry_hits,MIN(created_at) AS oldest,MAX(created_at) AS newest "
+                "FROM response_cache WHERE expires_at>?",
                 (now,),
             ).fetchone()
             hits, misses = int(metrics["hits"]), int(metrics["misses"])
-            total = hits + misses
+            historical_lookups = hits + misses
+            live_entries = int(live["n"])
             return {
                 "hits": hits,
                 "misses": misses,
-                "hit_rate_pct": round(hits * 100 / total, 2) if total else 0.0,
+                "historical_lookups": historical_lookups,
+                "hit_rate_pct": round(hits * 100 / historical_lookups, 2) if historical_lookups else 0.0,
                 "tokens_saved": int(metrics["tokens_saved"]),
-                "live_entries": int(live["n"]),
+                "live_entries": live_entries,
+                "oldest_live_entry_age_seconds": max(0, now - int(live["oldest"])) if live_entries and live["oldest"] else None,
+                "newest_live_entry_age_seconds": max(0, now - int(live["newest"])) if live_entries and live["newest"] else None,
                 "ttl_seconds": self.ttl_seconds,
+                "ttl_minutes": round(self.ttl_seconds / 60, 2),
                 "max_entries": self.max_entries,
             }
 

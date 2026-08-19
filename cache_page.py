@@ -17,9 +17,9 @@ CONTENT = r"""
 </div>
 
 <h2>layer 1 — cache-aware sticky routing</h2>
-<p>Provider-side prefix caching stores the model's computed state for the beginning of a prompt. Reusing a cached prefix cuts input cost by <b>-75% to -90%</b> and can drop time-to-first-token dramatically compared to processing fresh input.</p>
+<p>Some upstream providers maintain prompt-prefix or KV caches. If a request reaches the same provider worker with the same stable prefix, the provider may avoid part of the input computation and return faster or charge less.</p>
 
-<p>But normal cheapest-price routing can destroy those savings: request one goes to model A, request two goes to model B, so model A's warm cache is useless. Our router now keeps a recently selected model when it remains within <b>30% of the current cheapest eligible model</b>. If the price gap grows beyond that, it switches back to the live cheapest option.</p>
+<p>Surp keeps a recently selected <b>model</b> for up to five minutes when it remains within <b>30% of the current cheapest eligible model</b>. This improves the odds of upstream cache reuse, but Surplus may still choose a different seller or worker behind that model. Sticky routing is therefore a locality hint, not a guaranteed provider-cache hit.</p>
 
 <pre>request 1 → cheapest model A → provider writes prefix cache
 request 2 → A is still within tolerance → reuse A → cache read
@@ -48,7 +48,7 @@ request 3 → model B becomes 40% cheaper → switch to B</pre>
 <tr><td>multiple candidates (<code>n &gt; 1</code>)</td><td>bypass</td><td class="ok">eligible</td></tr>
 </tbody></table>
 
-<p><b>Raw prompts are never persisted in the exact cache.</b> The database contains only a SHA-256 request fingerprint and the completed response. Responses expire automatically and the cache is size-bounded.</p>
+<p><b>Privacy boundary:</b> raw prompts are not persisted in the exact-cache database. It stores a SHA-256 request fingerprint and the completed response for up to 15 minutes. Upstream sellers still receive the original request and apply their own retention policies.</p>
 
 <h2>how to get more cache hits</h2>
 <ol style="margin-left:20px;line-height:1.8;">
@@ -65,10 +65,19 @@ request 3 → model B becomes 40% cheaper → switch to B</pre>
 X-Surp-Cache-Type: exact-response
 X-Surp-Routing: sticky-within-tolerance | live-cheapest</pre>
 
-<p>The public <a href="/status">status page</a> shows exact-cache hit rate, tokens not recomputed, live cached answers, and sticky-route reuse. The same metrics are available as JSON at <code>GET /api/stats</code>.</p>
+<p>The public <a href="/status">status page</a> and <code>GET /api/stats</code> expose cumulative hits, misses, eligible lookups, saved tokens, live entries, entry ages, and the 15-minute TTL. The hit rate is historical: with only 19 eligible lookups so far, it proves the path has been used but is not yet a stable traffic benchmark.</p>
+
+<h2>what Surplus already does — and what Surp adds</h2>
+<table><thead><tr><th>layer</th><th>behavior</th></tr></thead><tbody>
+<tr><td>Surplus marketplace</td><td>Routes a requested model to the cheapest healthy seller. Its current public chat docs do not expose a marketplace cache API, cache-hit header, or discounted exact-answer tier.</td></tr>
+<tr><td>upstream seller</td><td>May maintain a prompt/KV cache. It can reuse a shared prefix while still generating a new answer; availability and pricing depend on the seller.</td></tr>
+<tr><td>Surp exact cache</td><td>Stores the completed answer for an identical deterministic request and skips the seller call entirely on a hit.</td></tr>
+<tr><td>Surp sticky routing</td><td>Keeps the same model briefly to improve locality odds. It does not guarantee the same Surplus seller or worker.</td></tr>
+<tr><td>Surp affinity research</td><td>Collects privacy-preserving prefix/model/provider latency samples. The auction remains experimental and is not a mature routing signal.</td></tr>
+</tbody></table>
 
 <h2>why this is different</h2>
-<p>Most gateways optimize either price or caching. Pure cheapest-price routing jumps between models and loses warm prefixes. Pure session pinning ignores cheaper market offers. Our approach treats cached computation as an economic asset: keep it while its savings beat the price gap, then move when the market moves enough to justify losing it.</p>
+<p>Most gateways optimize either price or caching. Surp combines two separate mechanisms: exact deterministic repeats can skip generation entirely, while brief model stickiness tries to improve upstream prompt-cache locality without accepting an unlimited price gap.</p>
 
 <h2>the cache flywheel — rewards for creating shared value</h2>
 <p>Cache hits create measurable economic value: the network avoids an upstream model call and keeps the difference. Instead of capturing all of that value, surp runs an experimental off-chain reward ledger called <b>SRP</b>:</p>

@@ -224,14 +224,19 @@ def _price_to_cents(surplus_price_per_1m: float, expected_tokens: int = 1500) ->
 # ──────────────────────────────────────────────────────────────────────────────
 
 def _build_payment_required(combo: str, model: str, surplus_price: float, expected_tokens: int,
-                            routing_reason: str = "") -> dict:
+                            routing_reason: str = "",
+                            required_microcents: int | None = None,
+                            cache_status: str = "MISS") -> dict:
     """Build the 402 response body + PAYMENT-REQUIRED header.
 
-    Returns a dict with 'status', 'headers', 'body' for aiohttp to emit.
+    An exact caller-selected amount bypasses the normal one-cent inference
+    floor. This is how exact-response cache hits retain their 0.1-cent price.
     """
-    cents = _price_to_cents(surplus_price, expected_tokens)
-    # x402 dollar-string price: "$0.01" syntax uses the chain's default stable.
-    price_str = f"${cents/100:.2f}"
+    if required_microcents is None:
+        cents = _price_to_cents(surplus_price, expected_tokens)
+    else:
+        cents = required_microcents / 10_000
+    price_str = f"${cents/100:.4f}"
 
     req = PaymentRequired(
         x402Version=2,
@@ -264,6 +269,8 @@ def _build_payment_required(combo: str, model: str, surplus_price: float, expect
         "combo": combo,
         "routed_model": model,
         "routing_reason": routing_reason,
+        "cache_status": cache_status,
+        "cache_hit_price_usd": f"{cents/100:.4f}" if cache_status == "HIT" else None,
         "surplus_price_per_1m": surplus_price,
         "expected_tokens": expected_tokens,
         "price_usd": price_str,
@@ -291,6 +298,7 @@ def _build_payment_required(combo: str, model: str, surplus_price: float, expect
         "status": 402,
         "headers": {
             PAYMENT_REQUIRED_HEADER: header_val,
+            "X-Surp-Cache": cache_status,
         },
         "body": body,
     }
@@ -1170,8 +1178,12 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
 
     # ── Path C: x402 ──
     elif not (request.headers.get("PAYMENT-SIGNATURE") or request.headers.get("X-PAYMENT")):
-        resp = _build_payment_required(combo, resolved_model, surplus_price, expected_tokens,
-                                       routing_reason=routing_reason)
+        resp = _build_payment_required(
+            combo, resolved_model, surplus_price, expected_tokens,
+            routing_reason=routing_reason,
+            required_microcents=required_microcents,
+            cache_status="HIT" if cached_preview is not None else ("MISS" if cacheable else "BYPASS"),
+        )
         log.info(f"402 {combo} -> {resolved_model} price=${resp['body']['price_usd']} (no payment)")
         return web.json_response(resp["body"], status=resp["status"], headers=resp["headers"])
 
@@ -1608,9 +1620,9 @@ def _render_status_content(s: dict, health: dict) -> str:
 
 <h2>cache engine</h2>
 <div class="grid">
-  <div class="card"><div class="num">{cache_stats.get('hit_rate_pct', 0)}%</div><div class="lbl">exact-cache hit rate</div></div>
-  <div class="card"><div class="num">{cache_stats.get('tokens_saved', 0)}</div><div class="lbl">tokens not recomputed</div></div>
-  <div class="card"><div class="num">{cache_stats.get('live_entries', 0)}</div><div class="lbl">live cached answers</div></div>
+  <div class="card"><div class="num">{cache_stats.get('hit_rate_pct', 0)}%</div><div class="lbl">historical exact-cache hit rate · {cache_stats.get('historical_lookups', 0)} eligible lookups</div></div>
+  <div class="card"><div class="num">{cache_stats.get('tokens_saved', 0):,}</div><div class="lbl">tokens not recomputed</div></div>
+  <div class="card"><div class="num">{cache_stats.get('live_entries', 0)}</div><div class="lbl">live cached answers · {cache_stats.get('ttl_minutes', 0):g} min TTL</div></div>
   <div class="card"><div class="num">{sticky_stats.get('sticky_reuses', 0)}</div><div class="lbl">sticky route reuses</div></div>
 </div>
 <table><tbody>
@@ -2049,7 +2061,7 @@ _HTML_BASE = r"""<!DOCTYPE html>
         <span>usdc/base <b>$1.00</b></span><i>│</i>
         <span>tps <b>847</b> ↑</span><i>│</i>
         <span>ttft <b>120ms</b> ↓</span><i>│</i>
-        <span>cache hit <b>34%</b> ↑</span><i>│</i>
+        <span>cache <b>{_RESPONSE_CACHE.stats().get('hit_rate_pct', 0):g}% hist / {_RESPONSE_CACHE.stats().get('live_entries', 0)} live</b></span><i>│</i>
         <span>models live <b>1,204</b></span><i>│</i>
         <span>srp pool <b>2.4M</b> ↑</span><i>│</i>
         <span>surp/free <b>$0.00</b> free</span><i>│</i>
@@ -2058,7 +2070,7 @@ _HTML_BASE = r"""<!DOCTYPE html>
         <span>usdc/base <b>$1.00</b></span><i>│</i>
         <span>tps <b>847</b> ↑</span><i>│</i>
         <span>ttft <b>120ms</b> ↓</span><i>│</i>
-        <span>cache hit <b>34%</b> ↑</span><i>│</i>
+        <span>cache <b>{_RESPONSE_CACHE.stats().get('hit_rate_pct', 0):g}% hist / {_RESPONSE_CACHE.stats().get('live_entries', 0)} live</b></span><i>│</i>
         <span>models live <b>1,204</b></span><i>│</i>
         <span>srp pool <b>2.4M</b> ↑</span><i>│</i>
       </div>
