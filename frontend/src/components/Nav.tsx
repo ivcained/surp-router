@@ -38,6 +38,7 @@ const SITE_SECTIONS: { label: string, pages: { path: string, label: string, emph
   {
     label: 'models & pricing',
     pages: [
+      { path: '/prices', label: 'OpenRouter vs Surp' },
       { path: '/top', label: 'top models' },
       { path: '/free-models', label: 'free models' },
       { path: '/auction', label: 'cache auction' },

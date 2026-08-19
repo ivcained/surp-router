@@ -22,6 +22,7 @@ import os
 import sys
 import time
 import traceback
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 import aiohttp
@@ -53,6 +54,8 @@ import value_index as vi
 import studio as stdo
 import srp_proposal_page as spp
 import system_design_page as sdp
+import price_compare as pc
+import price_compare_page as pcp
 
 # Investor pitch deck (self-contained HTML, served at /pitch).
 _DECK_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pitch_deck.html")
@@ -122,7 +125,11 @@ CACHE_DB = os.environ.get("SURP_CACHE_DB", "/root/.hermes/surp-router/cache.db")
 REWARD_DB = os.environ.get("SURP_REWARD_DB", "/root/.hermes/surp-router/rewards.db")
 CACHE_TTL_SECONDS = int(os.environ.get("SURP_CACHE_TTL_SECONDS", "900"))
 CACHE_MAX_ENTRIES = int(os.environ.get("SURP_CACHE_MAX_ENTRIES", "5000"))
-CACHE_HIT_CENTS = float(os.environ.get("SURP_CACHE_HIT_CENTS", "0.1"))
+CACHE_HIT_CENTS = float(os.environ.get("SURP_CACHE_HIT_CENTS", "0.1"))  # 0.1¢ = $0.001
+OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models"
+PRICE_COMPARE_TTL_SECONDS = int(os.environ.get("SURP_PRICE_COMPARE_TTL_SECONDS", "60"))
+_PRICE_COMPARE_CACHE: dict[str, Any] = {"fetched_at": 0.0, "models": {}, "generated_at": None}
+_PRICE_COMPARE_LOCK = asyncio.Lock()
 STICKY_TTL_SECONDS = int(os.environ.get("SURP_STICKY_TTL_SECONDS", "300"))
 STICKY_TOLERANCE_PCT = float(os.environ.get("SURP_STICKY_TOLERANCE_PCT", "30"))
 _RESPONSE_CACHE = ct.ResponseCache(CACHE_DB, CACHE_TTL_SECONDS, CACHE_MAX_ENTRIES)
@@ -463,6 +470,10 @@ PAGE_META = {
         "title": "Compare AI Models — surp.ivc.lol | side-by-side LLM comparison",
         "desc": "Compare AI models side by side. See strengths, weaknesses, cost per token, and which model is cheapest for your task.",
     },
+    "/prices": {
+        "title": "OpenRouter vs Surp — Live LLM Price Comparison & Savings",
+        "desc": "Compare live OpenRouter input/output token prices against Surp marketplace rates and calculate savings for your workload mix.",
+    },
     "/cache": {
         "title": "Cache-Aware LLM Routing — surp.ivc.lol | prefix + response caching",
         "desc": "How surp.ivc.lol combines provider prefix caching, sticky model routing, and privacy-preserving exact response caching to reduce LLM API cost and latency.",
@@ -654,6 +665,11 @@ async def api_combos(request: web.Request) -> web.Response:
 async def api_models_catalog(request: web.Request) -> web.Response:
     """GET /api/models — every text LLM on Surplus, for the combo builder."""
     markets = await GCACHE.get()
+    out = _surp_catalog_rows(markets)
+    return web.json_response({"count": len(out), "models": out})
+
+
+def _surp_catalog_rows(markets: list[dict[str, Any]]) -> list[dict[str, Any]]:
     out = []
     for m in markets:
         if not cr.is_text_llm(m):
@@ -665,8 +681,57 @@ async def api_models_catalog(request: web.Request) -> web.Response:
             "pro": cr.is_pro(m),
             "sellers": m.get("num_sellers") or m.get("seller_count"),
         })
-    out.sort(key=lambda r: r["usd_per_1m"])
-    return web.json_response({"count": len(out), "models": out})
+    out.sort(key=lambda row: row["usd_per_1m"])
+    return out
+
+
+async def _openrouter_prices() -> tuple[dict[str, dict[str, Any]], int, str]:
+    """Fetch OpenRouter's public catalog with a short stale-if-error cache."""
+    now = time.time()
+    async with _PRICE_COMPARE_LOCK:
+        age = int(max(0, now - float(_PRICE_COMPARE_CACHE["fetched_at"] or 0)))
+        if _PRICE_COMPARE_CACHE["models"] and age < PRICE_COMPARE_TTL_SECONDS:
+            return _PRICE_COMPARE_CACHE["models"], age, _PRICE_COMPARE_CACHE["generated_at"]
+        try:
+            timeout = aiohttp.ClientTimeout(total=20)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(OPENROUTER_MODELS_URL, headers={"Accept": "application/json", "User-Agent": "surp-price-compare/1.0"}) as response:
+                    response.raise_for_status()
+                    body = await response.json()
+            normalized = pc.normalize_openrouter(body.get("data") or [])
+            if not normalized:
+                raise RuntimeError("OpenRouter returned no comparable text models")
+            generated_at = datetime.now(timezone.utc).isoformat()
+            _PRICE_COMPARE_CACHE.update({"fetched_at": now, "models": normalized, "generated_at": generated_at})
+            return normalized, 0, generated_at
+        except Exception:
+            if _PRICE_COMPARE_CACHE["models"]:
+                return (_PRICE_COMPARE_CACHE["models"],
+                        int(max(0, now - float(_PRICE_COMPARE_CACHE["fetched_at"]))),
+                        _PRICE_COMPARE_CACHE["generated_at"])
+            raise
+
+
+async def api_price_compare(request: web.Request) -> web.Response:
+    try:
+        input_share = float(request.query.get("input_share", "0.8"))
+        if not 0 <= input_share <= 1:
+            raise ValueError
+    except ValueError:
+        return web.json_response({"error": "input_share must be between 0 and 1"}, status=400)
+    try:
+        markets, (openrouter, age, generated_at) = await asyncio.gather(GCACHE.get(), _openrouter_prices())
+        payload = pc.build_payload(_surp_catalog_rows(markets), openrouter,
+                                   input_share=input_share, generated_at=generated_at,
+                                   source_age_seconds=age)
+        return web.json_response(payload, headers={"Cache-Control": "public, max-age=30"})
+    except Exception as exc:
+        logging.getLogger("surp.gateway").warning("price comparison unavailable: %s", exc)
+        return web.json_response({"error": "live price comparison temporarily unavailable"}, status=503)
+
+
+async def page_price_compare(request: web.Request) -> web.Response:
+    return web.Response(text=_render_html(pcp.CONTENT, "/prices"), content_type="text/html")
 
 
 async def api_custom_create(request: web.Request) -> web.Response:
@@ -2038,6 +2103,7 @@ _HTML_BASE = r"""<!DOCTYPE html>
       <a href="/find">find model</a>
 
       <div class="site-menu-label">▸ models &amp; pricing</div>
+      <a href="/prices">OpenRouter vs Surp</a>
       <a href="/top">top models</a>
       <a href="/free-models">free models</a>
       <a href="/auction">cache auction</a>
@@ -2376,6 +2442,7 @@ __ROWS__
   <div class="card"><div class="num">2</div><div class="lbl">the api</div><p><a href="/x402-llm-api">x402 LLM API</a> — pay-per-request AI inference, OpenAI-compatible.</p></div>
   <div class="card"><div class="num">3</div><div class="lbl">the prices</div><p><a href="/cheapest-llm-api">Cheapest LLM API</a> — live pricing ranked, updated every minute.</p></div>
   <div class="card"><div class="num">4</div><div class="lbl">the architecture</div><p><a href="/system-design">System design</a> — how surp is built, the trade-offs, and the v2 proposal.</p></div>
+  <div class="card"><div class="num">5</div><div class="lbl">the spread</div><p><a href="/prices">OpenRouter vs Surp</a> — compare live model rates and calculate savings for your workload.</p></div>
 </div>
 <a class="cta" href="/playground" style="border-color: var(--fg-dim); color: var(--fg-dim);">try the playground</a>
 <p class="dim" style="margin-top:16px;font-size:12px;">
@@ -4433,7 +4500,7 @@ async def serve_robots(request: web.Request) -> web.Response:
 async def serve_sitemap(request: web.Request) -> web.Response:
     import time as _time
     lastmod = _time.strftime("%Y-%m-%d", _time.gmtime())
-    pages = ["/", "/docs", "/connect", "/builder", "/about", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api"]
+    pages = ["/", "/docs", "/connect", "/builder", "/about", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/prices", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api"]
     urls = ""
     for p in pages:
         priority = "1.0" if p == "/" else "0.8" if p in ("/docs", "/connect") else "0.6"
@@ -4569,6 +4636,7 @@ def build_app() -> web.Application:
     app.router.add_get("/api/combos/custom/{slug}", api_custom_get)
     app.router.add_get("/api/combos/history", api_combo_history)
     app.router.add_get("/api/models", api_models_catalog)
+    app.router.add_get("/api/price-compare", api_price_compare)
     app.router.add_get("/api/stats", api_global_stats)
     app.router.add_get("/api/rewards", api_reward_balance)
     app.router.add_get("/api/health", api_health)
@@ -4578,6 +4646,7 @@ def build_app() -> web.Application:
     app.router.add_get("/models", page_models_index)
     app.router.add_get("/models/{slug}", page_model_detail)
     app.router.add_get("/compare", page_compare)
+    app.router.add_get("/prices", page_price_compare)
     app.router.add_get("/find", page_find)
     app.router.add_get("/top", page_top)
     app.router.add_get("/api/compare", api_compare)
