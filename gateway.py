@@ -51,6 +51,8 @@ import model_benchmarks as mb
 import performance_page as pfp
 import user_accounts as ua
 import value_index as vi
+import aa_catalog
+import aa_router
 import studio as stdo
 import srp_proposal_page as spp
 import system_design_page as sdp
@@ -926,6 +928,13 @@ async def _serve_free_completion(
             "max_model_usd_per_1m": fm.CLASS_CEILINGS.get(free_class, fm.MAX_MODEL_USD_PER_1M),
         }, status=503)
 
+    free_pick = aa_router.pick("free", pool)
+    if free_pick is not None:
+        pool = sorted(
+            pool,
+            key=lambda m: (0 if m.get("model") == free_pick.model else 1, cr.price_of(m)),
+        )
+
     failed: set[str] = set()
     attempts: list[dict[str, Any]] = []
     started = time.monotonic()
@@ -1126,7 +1135,17 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
                 status=404,
             )
     try:
-        if surp_mode != "cost" or surp_weights is not None:
+        if combo in aa_router.LENS_COMBOS and combo != "free":
+            _aa_pick = aa_router.pick(combo, routing_pool, weights=surp_weights)
+            if _aa_pick is None:
+                raise RuntimeError("aa pick returned no model")
+            winner = next((m for m in routing_pool if m.get("model") == _aa_pick.model), None)
+            if winner is None:
+                raise RuntimeError("aa winner not in pool")
+            resolved_model = winner["model"]
+            surplus_price = cr.price_of(winner)
+            routing_reason = _aa_pick.reason
+        elif surp_mode != "cost" or surp_weights is not None:
             # SVI-aware routing: pick the winner by the requested value lens
             # instead of pure cheapest. Build the pool as {model, price, tps}
             # and let value_index decide (falls back to cheapest if no model
@@ -1534,6 +1553,29 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
 # ──────────────────────────────────────────────────────────────────────────────
 # Status, Dashboard, API Keys, Combo History endpoints
 # ──────────────────────────────────────────────────────────────────────────────
+
+async def api_route_preview(request: web.Request) -> web.Response:
+    """GET /api/routes/preview?mode=value&weights=0.45:0.4:0.15 — live AA pick."""
+    mode = str(request.query.get("mode") or "free").lower().strip()
+    if mode not in aa_router.LENS_COMBOS:
+        return web.json_response(
+            {"error": "mode must be one of " + ", ".join(aa_router.LENS_COMBOS)},
+            status=400,
+        )
+    weights = vi.parse_weights(str(request.query.get("weights") or ""))
+    try:
+        markets = await GCACHE.get()
+    except Exception as e:
+        return web.json_response({"error": f"market data unavailable: {e}"}, status=502)
+    if mode == "free":
+        pool = fm.sponsored_pool(markets)
+    else:
+        pool = cr.pool_for(mode, markets)
+    picked = aa_router.pick(mode, pool, weights=weights)
+    body = aa_router.preview_dict(picked, mode)
+    body["description"] = cr.COMBO_DESCRIPTIONS.get(mode, "")
+    return web.json_response(body)
+
 
 async def page_status(request: web.Request) -> web.Response:
     s = {
@@ -1996,10 +2038,14 @@ _HTML_BASE = r"""<!DOCTYPE html>
     box-shadow: inset 0 0 14px rgba(0,255,156,.14), 0 0 12px rgba(0,255,156,.22);
     text-shadow: 0 0 8px rgba(0,255,156,.6);
   }
-  /* The landing page has one job: explain value and start onboarding. Keep
-     the full navigation architecture on every interior page, not above the
-     first decision. */
-  body.home-page .site-sidebar { display: none; }
+  /* Homepage keeps the full menu behind a hamburger on every width. */
+  body.home-page .site-sidebar {
+    display: flex;
+    transform: translateX(-100%);
+    transition: transform .25s ease;
+  }
+  body.home-page .site-sidebar.open { transform: translateX(0); }
+  body.home-page .site-hamburger { display: inline-flex; }
   body.home-page .site-main { margin-left: 0; }
   body.home-page .site-topbar { position: relative; }
   body.home-page .site-breadcrumb { display: none; }
@@ -4646,6 +4692,7 @@ def build_app() -> web.Application:
     app.router.add_get("/builder", page_builder)
     app.router.add_get("/playground", page_playground)
     app.router.add_get("/api/combos", api_combos)
+    app.router.add_get("/api/routes/preview", api_route_preview)
     app.router.add_get("/api/combos/custom", api_custom_list)
     app.router.add_post("/api/combos/custom", api_custom_create)
     app.router.add_get("/api/combos/custom/{slug}", api_custom_get)
@@ -4743,6 +4790,11 @@ def main() -> None:
     )
     log = logging.getLogger("surp.gateway")
     _init_x402()
+    try:
+        aa_catalog.get_catalog(force_refresh=True)
+        log.info("AA catalog refresh started")
+    except Exception as e:
+        log.warning(f"AA catalog not ready: {e}")
     log.info(f"starting surp gateway on {args.host}:{args.port}")
     web.run_app(build_app(), host=args.host, port=args.port, access_log=None)
 
