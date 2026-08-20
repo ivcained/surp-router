@@ -61,16 +61,22 @@ PRO_TOKENS = (
 )
 
 BUILTIN_COMBOS: list[str] = [
+    "value", "frontier", "fast", "vision", "custom",
     "best-coding", "best-reasoning", "best-fast", "best-vision", "best-chat",
     "best-coding-fast",
     "pro-coding", "pro-reasoning", "pro-vision", "pro-chat", "pro-fast",
-    "coding", "fast", "chat",
+    "coding", "chat",
     "free", "srup-free",
     "free-coding", "free-fast",
 ]
 
 # Human-readable descriptions, shown on the site.
 COMBO_DESCRIPTIONS: dict[str, str] = {
+    "value": "capable models (AA score within 20% of the best), then max Surplus discount vs AA list price",
+    "frontier": "highest Artificial Analysis Intelligence Index, then Surplus discount",
+    "fast": "highest AA median tokens/sec inside the 20% quality band",
+    "vision": "multimodal / vision pool, then the value rule",
+    "custom": "your intelligence / speed / discount mix (surp_weights=cost:intel:speed)",
     "best-coding": "cheapest coding-class model (coder / codex / qwen3-coder)",
     "best-reasoning": "cheapest reasoning model (thinking / r1)",
     "best-fast": "cheapest small/fast model (mini / nano / lite / small)",
@@ -83,7 +89,6 @@ COMBO_DESCRIPTIONS: dict[str, str] = {
     "pro-chat": "cheapest FRONTIER-tier chat model",
     "pro-fast": "cheapest FRONTIER-tier fast model",
     "coding": "alias of best-coding",
-    "fast": "alias of best-fast",
     "chat": "alias of best-chat",
     "free": "treasury-sponsored free inference with live fallback and daily limits",
     "free-coding": "treasury-sponsored free coding models with live fallback",
@@ -207,6 +212,10 @@ def pool_for(combo: str, markets: list[dict]) -> list[dict]:
         wanted = combo[7:]
         pool = [m for m in all_text if m["model"].lower() == wanted.lower()]
         return pool
+    if combo in ("value", "frontier", "fast", "custom"):
+        return sorted(all_text, key=price_of)
+    if combo == "vision":
+        return sorted([m for m in all_text if is_vision(m)], key=price_of)
     if combo in ("free", "srup-free"):
         zero = [m for m in all_text if price_of(m) == 0]
         pool = zero if zero else all_text
@@ -217,7 +226,7 @@ def pool_for(combo: str, markets: list[dict]) -> list[dict]:
         want = {w.lower() for w in wanted}
         pool = [m for m in all_text if m["model"].lower() in want]
     else:
-        if combo in ("coding", "fast", "chat"):
+        if combo in ("coding", "chat"):
             tier, cls = "best", combo
         elif combo.startswith("best-"):
             tier, cls = "best", combo[5:]
