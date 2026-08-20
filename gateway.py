@@ -54,6 +54,7 @@ import value_index as vi
 import studio as stdo
 import srp_proposal_page as spp
 import system_design_page as sdp
+import home_page
 import price_compare as pc
 import price_compare_page as pcp
 
@@ -567,6 +568,8 @@ def _render_html(content: str, path: str = "/") -> str:
     html = html.replace("__DESC__", meta["desc"])
     html = html.replace("__PATH__", path)
     html = html.replace("__JSONLD__", _json.dumps(JSONLD_ORG))
+    html = html.replace("__BODY_CLASS__", "home-page" if path == "/" else "")
+    html = html.replace("__ANNOUNCE_CLASS__", "hidden" if path == "/" else "")
     # Breadcrumb label for the universal top bar.
     breadcrumb = meta["title"].split(" — ")[0].lower().strip()
     html = html.replace("__BREADCRUMB__", breadcrumb)
@@ -1993,6 +1996,16 @@ _HTML_BASE = r"""<!DOCTYPE html>
     box-shadow: inset 0 0 14px rgba(0,255,156,.14), 0 0 12px rgba(0,255,156,.22);
     text-shadow: 0 0 8px rgba(0,255,156,.6);
   }
+  /* The landing page has one job: explain value and start onboarding. Keep
+     the full navigation architecture on every interior page, not above the
+     first decision. */
+  body.home-page .site-sidebar { display: none; }
+  body.home-page .site-main { margin-left: 0; }
+  body.home-page .site-topbar { position: relative; }
+  body.home-page .site-breadcrumb { display: none; }
+  body.home-page .site-actions { margin-left: auto; }
+  body.home-page .site-content { padding-top: 0; }
+  body.home-page .announce { display: none; }
   .site-system {
     margin-top: auto; padding: 13px 20px; border-top: 1px solid var(--border);
     color: #555; font-size: 10px;
@@ -2080,7 +2093,7 @@ _HTML_BASE = r"""<!DOCTYPE html>
   }
 </style>
 </head>
-<body>
+<body class="__BODY_CLASS__">
 <div class="site-shell">
   <aside class="site-sidebar">
     <div class="site-brand">
@@ -2176,7 +2189,7 @@ _HTML_BASE = r"""<!DOCTYPE html>
     <li><a href="/api/health">api</a></li>
   </ul>
 </nav>
-<div id="announce-banner" class="announce">
+<div id="announce-banner" class="announce __ANNOUNCE_CLASS__">
   <span class="announce-pulse" aria-hidden="true"></span>
   <span class="announce-text">
     <b>new:</b> genuinely free AI models are live —
@@ -2303,7 +2316,9 @@ document.addEventListener("DOMContentLoaded", function() {
 </html>
 """
 
-_HOME_CONTENT = r"""
+_HOME_CONTENT = home_page.CONTENT
+
+_LEGACY_HOME_CONTENT = r"""
 <p class="dim" style="margin:0 0 10px;font-size:12px;">
 <span class="badge" style="margin-left:0;">vs. going direct</span>
 surplus is already cheap — surp makes repeats <b>10x cheaper</b>: cached answers cost
