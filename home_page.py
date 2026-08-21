@@ -2,91 +2,115 @@
 
 CONTENT = r'''
 <style>
+:root {
+  --focus-ring: 0 0 0 2px #000, 0 0 0 4px var(--accent);
+}
 .home-focus { max-width: 980px; margin: 0 auto; }
-.home-hero { min-height: calc(100vh - 160px); display:flex; flex-direction:column; justify-content:center; padding:64px 0 72px; }
-.home-hero h1 { max-width:820px; font-size:clamp(42px,7.5vw,78px); line-height:1.02; letter-spacing:-2.5px; margin:0 0 24px; font-weight:800; color:var(--accent); text-shadow:0 0 16px rgba(0,255,156,.28); }
-.home-lede { max-width:720px; color:var(--fg); font-size:clamp(16px,2vw,19px); line-height:1.65; margin:0 0 32px; font-weight:400; }
+.home-hero { min-height: calc(100vh - 160px); display:flex; flex-direction:column; justify-content:center; padding:56px 0 64px; }
+.home-hero h1 { max-width:820px; font-size:clamp(38px,7vw,74px); line-height:1.02; letter-spacing:-2.5px; margin:0 0 20px; font-weight:800; color:var(--accent); text-shadow:0 0 16px rgba(0,255,156,.28); }
+.home-lede { max-width:720px; color:var(--fg); font-size:clamp(15px,2vw,18px); line-height:1.65; margin:0 0 28px; font-weight:400; }
 .home-actions { display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
-.home-primary-cta { display:inline-flex; align-items:center; justify-content:center; padding:13px 26px; color:#00150d; background:var(--accent); border:1px solid var(--accent); border-radius:4px; font-size:15px; font-weight:800; letter-spacing:0.2px; text-decoration:none; box-shadow:0 0 24px rgba(0,255,156,.28); transition:transform .15s, box-shadow .15s; }
+.home-primary-cta { display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:12px 24px; color:#00150d; background:var(--accent); border:1px solid var(--accent); border-radius:4px; font-size:15px; font-weight:800; letter-spacing:0.2px; text-decoration:none; box-shadow:0 0 24px rgba(0,255,156,.28); transition:transform .15s, box-shadow .15s; }
 .home-primary-cta:hover { color:#00150d; text-decoration:none; transform:translateY(-1px); box-shadow:0 0 32px rgba(0,255,156,.42); }
-.home-secondary { color:var(--fg-dim); font-size:14px; text-decoration:none; transition:color .15s; }
+.home-primary-cta:focus-visible { outline:none; box-shadow:var(--focus-ring); }
+.home-secondary { display:inline-flex; align-items:center; min-height:44px; color:var(--fg-dim); font-size:14px; text-decoration:none; transition:color .15s; padding:0 4px; }
 .home-secondary:hover { color:var(--accent); text-decoration:underline; }
-.home-proof { display:flex; gap:36px; flex-wrap:wrap; margin-top:48px; padding-top:24px; border-top:1px solid var(--border); }
+.home-secondary:focus-visible { outline:none; box-shadow:var(--focus-ring); border-radius:2px; }
+.home-proof { display:flex; gap:32px; flex-wrap:wrap; margin-top:40px; padding-top:20px; border-top:1px solid var(--border); }
 .home-proof-item { display:flex; flex-direction:column; gap:4px; }
 .home-proof-item b { color:var(--accent); font-size:18px; font-weight:700; }
 .home-proof-item span { color:var(--fg-dim); font-size:12px; line-height:1.4; }
 .cache-tip { position:relative; display:inline-flex; align-items:center; gap:6px; cursor:help; }
-.cache-tip button { width:18px; height:18px; border:1px solid var(--border-bright); border-radius:50%; background:transparent; color:var(--accent); font:inherit; font-size:11px; line-height:1; cursor:pointer; padding:0; display:inline-flex; align-items:center; justify-content:center; }
-.cache-tip button:hover, .cache-tip button:focus-visible { border-color:var(--accent); }
+.cache-tip button { min-width:24px; min-height:24px; border:1px solid var(--border-bright); border-radius:50%; background:transparent; color:var(--accent); font:inherit; font-size:12px; line-height:1; cursor:pointer; padding:0; display:inline-flex; align-items:center; justify-content:center; }
+.cache-tip button:hover, .cache-tip button:focus-visible { border-color:var(--accent); outline:none; box-shadow:var(--focus-ring); }
 .cache-tip .tip {
   display:none; position:absolute; left:0; top:calc(100% + 8px); z-index:20; width:min(340px,80vw);
   padding:12px 14px; background:#07140e; border:1px solid var(--accent-dim); border-radius:4px; color:var(--fg); font-size:12px; line-height:1.5;
   box-shadow:0 12px 32px rgba(0,0,0,.65); pointer-events:none;
 }
 .cache-tip:hover .tip, .cache-tip:focus-within .tip { display:block; }
-.home-section { padding:80px 0; border-top:1px solid var(--border); }
-.home-section h2 { font-size:clamp(28px,4.5vw,42px); line-height:1.15; letter-spacing:-1px; margin:0 0 12px; color:var(--accent); border-bottom:0; padding-bottom:0; }
-.home-section-intro { max-width:680px; color:var(--fg-dim); font-size:15px; line-height:1.65; margin-bottom:28px; }
+.home-section { padding:64px 0; border-top:1px solid var(--border); }
+.home-section h2 { font-size:clamp(26px,4.5vw,40px); line-height:1.15; letter-spacing:-1px; margin:0 0 10px; color:var(--accent); border-bottom:0; padding-bottom:0; }
+.home-section-intro { max-width:680px; color:var(--fg-dim); font-size:15px; line-height:1.65; margin-bottom:24px; }
 .demo-shell { display:grid; grid-template-columns:minmax(0,1.35fr) minmax(280px,.85fr); border:1px solid var(--border-bright); background:var(--bg-alt); border-radius:4px; }
-.demo-prompt { padding:24px; border-right:1px solid var(--border); }
+.demo-prompt { padding:20px; border-right:1px solid var(--border); }
 .demo-prompt label { display:block; color:var(--fg-dim); font-size:11px; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; }
-.demo-prompt textarea { width:100%; min-height:100px; resize:vertical; box-sizing:border-box; background:#030503; color:var(--fg); border:1px solid var(--border-bright); border-radius:4px; padding:12px 14px; font:inherit; font-size:13px; line-height:1.5; }
-.demo-prompt textarea:focus { outline:none; border-color:var(--accent); }
+.demo-prompt textarea { width:100%; min-height:96px; resize:vertical; box-sizing:border-box; background:#030503; color:var(--fg); border:1px solid var(--border-bright); border-radius:4px; padding:12px 14px; font:inherit; font-size:13px; line-height:1.5; }
+.demo-prompt textarea:focus-visible { outline:none; border-color:var(--accent); box-shadow:var(--focus-ring); }
 .demo-buttons-label { display:block; color:var(--fg-dim); font-size:11px; text-transform:uppercase; letter-spacing:1px; margin:16px 0 8px; }
 .demo-buttons { display:flex; gap:8px; flex-wrap:wrap; }
-.demo-buttons button { padding:8px 14px; border:1px solid var(--border-bright); border-radius:4px; background:transparent; color:var(--fg-dim); font:inherit; font-size:13px; cursor:pointer; transition:all .15s; }
+.demo-buttons button { min-height:40px; padding:8px 14px; border:1px solid var(--border-bright); border-radius:4px; background:transparent; color:var(--fg-dim); font:inherit; font-size:13px; cursor:pointer; transition:all .15s; }
 .demo-buttons button:hover { border-color:var(--accent-dim); color:var(--fg); }
+.demo-buttons button:focus-visible { outline:none; box-shadow:var(--focus-ring); border-color:var(--accent); }
 .demo-buttons button.active { border-color:var(--accent); color:var(--accent); background:rgba(0,255,156,.06); font-weight:700; }
-.demo-custom { display:none; margin-top:18px; padding-top:14px; border-top:1px dashed var(--border); }
+.demo-buttons button.active:focus-visible { outline:none; box-shadow:var(--focus-ring); }
+.demo-custom { display:none; margin-top:16px; padding-top:14px; border-top:1px dashed var(--border); }
 .demo-custom.open { display:block; }
-.demo-custom p { margin-bottom:12px; font-size:12px; }
+.demo-custom p { margin-bottom:10px; font-size:12px; }
 .demo-custom .sliders { display:grid; gap:10px; }
-.demo-custom label { display:flex; justify-content:space-between; align-items:center; gap:14px; color:var(--fg); font-size:12px; }
-.demo-custom input[type=range] { flex:1; max-width:180px; accent-color:var(--accent); }
-.demo-result { padding:24px; display:flex; flex-direction:column; justify-content:center; background:#030704; }
+.demo-custom label { display:flex; justify-content:space-between; align-items:center; gap:14px; color:var(--fg); font-size:12px; min-height:36px; }
+.demo-custom input[type=range] { flex:1; max-width:180px; min-height:32px; accent-color:var(--accent); cursor:pointer; }
+.demo-custom input[type=range]:focus-visible { outline:none; box-shadow:var(--focus-ring); }
+.demo-result { padding:20px; display:flex; flex-direction:column; justify-content:center; background:#030704; min-height:220px; }
 .demo-result .route-label { color:var(--fg-dim); font-size:11px; text-transform:uppercase; letter-spacing:1px; margin-bottom:4px; }
-.demo-result .route { color:var(--accent); font-size:20px; font-weight:800; margin-bottom:14px; letter-spacing:-0.5px; }
+.demo-result .route { color:var(--accent); font-size:20px; font-weight:800; margin-bottom:12px; letter-spacing:-0.5px; word-break:break-word; }
 .demo-result .model-label { color:var(--fg-dim); font-size:11px; text-transform:uppercase; letter-spacing:1px; margin-bottom:2px; }
-.demo-result .saving { color:#5ce1ff; font-size:24px; font-weight:800; line-height:1.2; margin-bottom:12px; }
+.demo-result .saving { color:#5ce1ff; font-size:22px; font-weight:800; line-height:1.2; margin-bottom:10px; word-break:break-word; }
 .demo-result .detail { color:var(--fg-dim); font-size:12px; line-height:1.6; }
-.agent-box { margin-top:24px; padding:20px; border:1px dashed var(--border-bright); background:#030503; border-radius:4px; }
+.demo-result .err-state { color:#ff8080; }
+.demo-result .retry-btn { margin-top:10px; padding:6px 12px; border:1px solid #ff8080; border-radius:4px; background:transparent; color:#ff8080; font:inherit; font-size:12px; cursor:pointer; align-self:flex-start; }
+.demo-result .retry-btn:hover { background:rgba(255,128,128,.1); }
+.demo-result .retry-btn:focus-visible { outline:none; box-shadow:var(--focus-ring); }
+.agent-box { margin-top:20px; padding:18px; border:1px dashed var(--border-bright); background:#030503; border-radius:4px; }
 .agent-box h3 { margin:0 0 6px; font-size:14px; color:var(--accent); font-weight:700; }
-.agent-box p { color:var(--fg-dim); font-size:13px; line-height:1.55; margin:0 0 12px; }
-.agent-box pre { white-space:pre-wrap; word-break:break-word; background:#000; border:1px solid var(--border); border-radius:4px; padding:14px; color:var(--fg); font-size:12px; line-height:1.6; }
+.agent-box p { color:var(--fg-dim); font-size:13px; line-height:1.55; margin:0 0 10px; }
+.agent-box pre { white-space:pre-wrap; word-break:break-word; background:#000; border:1px solid var(--border); border-radius:4px; padding:12px 14px; color:var(--fg); font-size:12px; line-height:1.6; }
 .agent-box .row { display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
 .agent-box button, .agent-box a.btn {
   display:inline-flex; align-items:center; justify-content:center;
-  padding:8px 14px; border:1px solid var(--border-bright); border-radius:4px; background:transparent;
+  min-height:40px; padding:8px 14px; border:1px solid var(--border-bright); border-radius:4px; background:transparent;
   color:var(--accent); font:inherit; font-size:12px; font-weight:700; cursor:pointer; text-decoration:none; transition:all .15s;
 }
 .agent-box button:hover, .agent-box a.btn:hover { border-color:var(--accent); background:rgba(0,255,156,.06); text-decoration:none; }
-.connection-steps { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:20px; }
-.connection-step { padding:22px; border:1px solid var(--border); background:var(--bg-alt); border-radius:4px; }
+.agent-box button:focus-visible, .agent-box a.btn:focus-visible { outline:none; box-shadow:var(--focus-ring); border-color:var(--accent); }
+.agent-box button:disabled { opacity:.5; cursor:not-allowed; }
+.key-status-msg { margin-top:10px; font-size:12px; line-height:1.5; color:var(--fg-dim); }
+.key-status-msg.ok { color:var(--accent); }
+.key-status-msg.err { color:#ff8080; }
+.connection-steps { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:16px; }
+.connection-step { padding:20px; border:1px solid var(--border); background:var(--bg-alt); border-radius:4px; }
 .connection-step b { display:block; color:var(--accent); font-size:14px; margin-bottom:6px; }
 .connection-step p { color:var(--fg-dim); font-size:13px; line-height:1.55; margin:0; }
-.warn-note { margin:20px 0; padding:14px 18px; border:1px solid var(--border-bright); background:rgba(255,210,63,.03); border-radius:4px; color:var(--fg); font-size:13px; line-height:1.6; }
+.warn-note { margin:16px 0; padding:14px 18px; border:1px solid var(--border-bright); background:rgba(255,210,63,.03); border-radius:4px; color:var(--fg); font-size:13px; line-height:1.6; }
 .warn-note code { font-size:11px; }
 .funding-path { border:1px solid var(--border); margin-top:10px; background:var(--bg-alt); border-radius:4px; }
-.funding-path summary { padding:14px 18px; cursor:pointer; color:var(--fg); font-weight:700; font-size:13px; }
+.funding-path summary { padding:14px 18px; cursor:pointer; color:var(--fg); font-weight:700; font-size:13px; min-height:44px; display:flex; align-items:center; }
 .funding-path summary:hover { color:var(--accent); }
+.funding-path summary:focus-visible { outline:none; box-shadow:var(--focus-ring); border-radius:2px; }
 .funding-path div { padding:0 18px 16px; color:var(--fg-dim); font-size:13px; line-height:1.6; }
 .funding-path code { color:var(--accent); font-size:12px; }
-.home-docs { padding:36px; border:1px dashed var(--border-bright); text-align:center; color:var(--fg-dim); border-radius:4px; }
+.funding-path a { color:#5ce1ff; }
+.funding-path a:focus-visible { outline:none; box-shadow:var(--focus-ring); }
+.home-docs { padding:32px 20px; border:1px dashed var(--border-bright); text-align:center; color:var(--fg-dim); border-radius:4px; }
 .home-docs b { display:block; color:var(--accent); font-size:16px; margin-bottom:8px; }
 .home-docs p { max-width:620px; margin:0 auto 16px; font-size:13px; line-height:1.6; }
-.home-docs a.docs-btn { display:inline-flex; padding:8px 18px; border:1px solid var(--accent); color:var(--accent); font-weight:700; border-radius:4px; text-decoration:none; margin-bottom:16px; }
+.home-docs a.docs-btn { display:inline-flex; align-items:center; justify-content:center; min-height:40px; padding:8px 18px; border:1px solid var(--accent); color:var(--accent); font-weight:700; border-radius:4px; text-decoration:none; margin-bottom:16px; }
 .home-docs a.docs-btn:hover { background:var(--accent); color:#00150d; }
+.home-docs a.docs-btn:focus-visible { outline:none; box-shadow:var(--focus-ring); }
 .home-quiet-links { display:flex; justify-content:center; gap:20px; flex-wrap:wrap; font-size:12px; }
-.home-quiet-links a { color:var(--fg-dim); }
+.home-quiet-links a { color:var(--fg-dim); display:inline-flex; align-items:center; min-height:36px; padding:0 4px; }
 .home-quiet-links a:hover { color:var(--accent); }
+.home-quiet-links a:focus-visible { outline:none; box-shadow:var(--focus-ring); border-radius:2px; }
 @media(max-width:760px) {
-  .home-hero { min-height:auto; padding:44px 0 56px; }
+  .home-hero { min-height:auto; padding:36px 0 44px; }
   .home-hero h1 { letter-spacing:-1.5px; }
   .demo-shell { grid-template-columns:1fr; }
   .demo-prompt { border-right:0; border-bottom:1px solid var(--border); }
   .connection-steps { grid-template-columns:1fr; }
   .cache-tip .tip { left:auto; right:0; }
-  .home-proof { gap:20px; }
+  .home-proof { gap:18px; }
+  .demo-custom label { flex-direction:column; align-items:flex-start; gap:6px; }
+  .demo-custom input[type=range] { max-width:100%; width:100%; }
 }
 </style>
 
@@ -137,9 +161,9 @@ CONTENT = r'''
         <div class="demo-custom" id="demo-custom">
           <p class="dim">Set how much intelligence, speed, and discount matter. Cost here is Surplus % off the AA list price.</p>
           <div class="sliders">
-            <label>Intelligence <input id="w-intel" type="range" min="0" max="5" value="4"></label>
-            <label>Speed <input id="w-speed" type="range" min="0" max="5" value="1"></label>
-            <label>Discount <input id="w-cost" type="range" min="0" max="5" value="1"></label>
+            <label>Intelligence <input id="w-intel" type="range" min="0" max="5" value="4" aria-label="Intelligence weight"></label>
+            <label>Speed <input id="w-speed" type="range" min="0" max="5" value="1" aria-label="Speed weight"></label>
+            <label>Discount <input id="w-cost" type="range" min="0" max="5" value="1" aria-label="Discount weight"></label>
           </div>
         </div>
       </div>
@@ -155,7 +179,7 @@ CONTENT = r'''
     <div class="agent-box" id="agent-box">
       <h3>Copy this into your agent</h3>
       <p>Create a Surp key, then paste the prompt. This is not a SurplusIntelligence.ai key. The base URL is different.</p>
-      <pre id="agent-prompt">Use Surp as my OpenAI-compatible provider.
+      <pre id="agent-prompt" tabindex="0">Use Surp as my OpenAI-compatible provider.
 
 Base URL: https://surp.ivc.lol/v1
 API key: YOUR_SURP_KEY
@@ -168,7 +192,7 @@ Do not expect a SurplusIntelligence balance here. This key only works on this ba
         <button type="button" id="btn-make-key">Create a free key</button>
         <a class="btn" href="/app">Open account →</a>
       </div>
-      <p id="key-status" class="dim" style="margin-top:10px"></p>
+      <p id="key-status" class="key-status-msg" aria-live="polite"></p>
     </div>
   </section>
 
@@ -225,6 +249,8 @@ Do not expect a SurplusIntelligence balance here. This key only works on this ba
   var custom = document.getElementById('demo-custom');
   var promptBox = document.getElementById('agent-prompt');
   var keyStatus = document.getElementById('key-status');
+  var makeKeyBtn = document.getElementById('btn-make-key');
+  var copyPromptBtn = document.getElementById('btn-copy-prompt');
   var currentMode = 'free';
   var currentKey = 'YOUR_SURP_KEY';
 
@@ -238,19 +264,23 @@ Do not expect a SurplusIntelligence balance here. This key only works on this ba
   function setPrompt(mode, key) {
     currentKey = key || currentKey;
     promptBox.textContent =
-      'Use Surp as my OpenAI-compatible provider.
-
-' +
-      'Base URL: https://surp.ivc.lol/v1
-' +
-      'API key: ' + currentKey + '
-' +
-      'Model: surp/' + mode + '
-
-' +
-      'Do not use https://api.surplusintelligence.ai/min30/v1/chat/completions
-' +
+      'Use Surp as my OpenAI-compatible provider.\n\n' +
+      'Base URL: https://surp.ivc.lol/v1\n' +
+      'API key: ' + currentKey + '\n' +
+      'Model: surp/' + mode + '\n\n' +
+      'Do not use https://api.surplusintelligence.ai/min30/v1/chat/completions\n' +
       'Do not expect a SurplusIntelligence balance here. This key only works on this base URL.';
+  }
+
+  function renderError(msg) {
+    price.textContent = '—';
+    saving.innerHTML = '<span class="err-state">' + msg + '</span><br><button type="button" class="retry-btn" id="btn-retry-preview">Retry</button>';
+    var retryBtn = document.getElementById('btn-retry-preview');
+    if (retryBtn) {
+      retryBtn.addEventListener('click', function () {
+        loadPreview(currentMode);
+      });
+    }
   }
 
   function loadPreview(mode) {
@@ -258,12 +288,17 @@ Do not expect a SurplusIntelligence balance here. This key only works on this ba
     route.textContent = 'surp/' + mode;
     custom.className = 'demo-custom' + (mode === 'custom' ? ' open' : '');
     price.textContent = 'loading…';
+    saving.textContent = 'Checking live marketplace…';
     var qs = '/api/routes/preview?mode=' + encodeURIComponent(mode);
     if (mode === 'custom') qs += '&weights=' + encodeURIComponent(weights());
-    fetch(qs).then(function (r) { return r.json(); }).then(function (data) {
+    fetch(qs).then(function (r) {
+      if (!r.ok) {
+        throw new Error('HTTP ' + r.status);
+      }
+      return r.json();
+    }).then(function (data) {
       if (!data || data.error) {
-        price.textContent = '—';
-        saving.textContent = data && data.error ? data.error : 'Live market is not available. Try again.';
+        renderError((data && data.error) || 'Market feed is not available.');
         return;
       }
       route.textContent = data.combo || ('surp/' + mode);
@@ -282,9 +317,8 @@ Do not expect a SurplusIntelligence balance here. This key only works on this ba
           (data.description || 'Final price is quoted before payment.');
       }
       setPrompt(mode, currentKey);
-    }).catch(function () {
-      price.textContent = '—';
-      saving.textContent = 'Live market is not available. Try again.';
+    }).catch(function (err) {
+      renderError('Live market is not available (' + (err.message || 'network') + ').');
     });
   }
 
@@ -295,35 +329,84 @@ Do not expect a SurplusIntelligence balance here. This key only works on this ba
       loadPreview(button.getAttribute('data-mode'));
     });
   });
+
+  var debounceTimer = null;
   ['w-intel', 'w-speed', 'w-cost'].forEach(function (id) {
     document.getElementById(id).addEventListener('input', function () {
-      if (currentMode === 'custom') loadPreview('custom');
+      if (currentMode === 'custom') {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(function () {
+          loadPreview('custom');
+        }, 150);
+      }
     });
   });
-  document.getElementById('btn-copy-prompt').addEventListener('click', function () {
+
+  copyPromptBtn.addEventListener('click', function () {
     var text = promptBox.textContent;
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text);
+      navigator.clipboard.writeText(text).then(function () {
+        keyStatus.className = 'key-status-msg ok';
+        keyStatus.textContent = 'Prompt copied to clipboard.';
+      }).catch(function () {
+        fallbackCopy(text);
+      });
+    } else {
+      fallbackCopy(text);
     }
-    keyStatus.textContent = 'Prompt copied.';
   });
-  document.getElementById('btn-make-key').addEventListener('click', function () {
+
+  function fallbackCopy(text) {
+    try {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      var ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      if (ok) {
+        keyStatus.className = 'key-status-msg ok';
+        keyStatus.textContent = 'Prompt copied to clipboard.';
+        return;
+      }
+    } catch (e) {}
+    keyStatus.className = 'key-status-msg';
+    keyStatus.textContent = 'Select text above and press Ctrl+C (Cmd+C).';
+  }
+
+  makeKeyBtn.addEventListener('click', function () {
+    keyStatus.className = 'key-status-msg';
     keyStatus.textContent = 'Creating a free key…';
+    makeKeyBtn.disabled = true;
     fetch('/api/free-key', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ label: 'homepage' })
-    }).then(function (r) { return r.json(); }).then(function (data) {
+    }).then(function (r) {
+      if (!r.ok) {
+        throw new Error('HTTP ' + r.status);
+      }
+      return r.json();
+    }).then(function (data) {
+      makeKeyBtn.disabled = false;
       if (!data || !data.key) {
+        keyStatus.className = 'key-status-msg err';
         keyStatus.textContent = (data && data.error) || 'Could not create a key. Open /app instead.';
         return;
       }
       setPrompt(currentMode, data.key);
-      keyStatus.textContent = 'Key created. It is in the prompt. Store it now — this page will not show it again.';
-    }).catch(function () {
-      keyStatus.textContent = 'Could not create a key. Open /app instead.';
+      keyStatus.className = 'key-status-msg ok';
+      keyStatus.textContent = 'Key created and added to prompt. Save it now — this page will not display it again.';
+    }).catch(function (err) {
+      makeKeyBtn.disabled = false;
+      keyStatus.className = 'key-status-msg err';
+      keyStatus.textContent = 'Could not create a key (' + (err.message || 'network') + '). Open /app instead.';
     });
   });
+
   loadPreview('free');
 })();
 </script>
