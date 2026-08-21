@@ -48,7 +48,7 @@ CONTENT = r'''
   <section class="home-hero">
     <div class="home-eyebrow">Surplus prices + smart routing + a 10× cheaper repeat cache</div>
     <h1>Spend less on every AI call.</h1>
-    <p class="home-lede">Surp checks the live Surplus marketplace, routes each job to the lowest-cost suitable model, and serves exact repeated answers from cache for $0.001. Connect once; your agent keeps shopping.</p>
+    <p class="home-lede">Surp checks the live Surplus marketplace, routes each job to the lowest-cost suitable model, and serves exact repeated answers from cache for $0.001. Connect once and pay in USDC on Base; your agent keeps shopping.</p>
     <div class="home-actions">
       <a href="#try" class="home-primary-cta">Try it free</a>
       <a href="#connect" class="home-secondary">Already convinced? Connect your agent →</a>

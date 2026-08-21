@@ -5,6 +5,8 @@ from gateway import _HOME_CONTENT
 
 def test_homepage_starts_with_one_value_proposition_and_primary_cta():
     assert 'Spend less on every AI call.' in _HOME_CONTENT
+    assert 'pay in USDC on Base' in _HOME_CONTENT
+    assert 'crypto onramp' not in _HOME_CONTENT.lower()
     assert 'href="#try" class="home-primary-cta"' in _HOME_CONTENT
     assert _HOME_CONTENT.index('Spend less on every AI call.') < _HOME_CONTENT.index('id="try"')
 
