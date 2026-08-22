@@ -154,7 +154,8 @@ CONTENT = r'''
           <button class="active" data-mode="free">Free</button>
           <button data-mode="value">Value</button>
           <button data-mode="frontier">Frontier</button>
-          <button data-mode="fast">Fast</button>
+        <button data-mode="speed">Speed</button>
+        <button data-mode="fast" class="legacy-mode" hidden>Fast</button>
           <button data-mode="vision">Vision</button>
           <button data-mode="custom">Custom</button>
         </div>
@@ -173,6 +174,7 @@ CONTENT = r'''
         <span class="model-label">Live model pick</span>
         <div class="saving" id="demo-price">loading…</div>
         <p class="detail" id="demo-saving">Free route. Treasury pays Surplus. You pay $0 within the daily cap.</p>
+        <p class="detail">Vision is ranked by Artificial Analysis general Intelligence Index, not a vision-specific benchmark.</p>
       </div>
     </div>
 
@@ -189,7 +191,6 @@ Do not use https://api.surplusintelligence.ai/min30/v1/chat/completions
 Do not expect a SurplusIntelligence balance here. This key only works on this base URL.</pre>
       <div class="row">
         <button type="button" id="btn-copy-prompt">Copy prompt</button>
-        <button type="button" id="btn-make-key">Create a free key</button>
         <a class="btn" href="/app">Open account →</a>
       </div>
       <p id="key-status" class="key-status-msg" aria-live="polite"></p>
@@ -249,7 +250,6 @@ Do not expect a SurplusIntelligence balance here. This key only works on this ba
   var custom = document.getElementById('demo-custom');
   var promptBox = document.getElementById('agent-prompt');
   var keyStatus = document.getElementById('key-status');
-  var makeKeyBtn = document.getElementById('btn-make-key');
   var copyPromptBtn = document.getElementById('btn-copy-prompt');
   var currentMode = 'free';
   var currentKey = 'YOUR_SURP_KEY';
@@ -376,36 +376,6 @@ Do not expect a SurplusIntelligence balance here. This key only works on this ba
     keyStatus.className = 'key-status-msg';
     keyStatus.textContent = 'Select text above and press Ctrl+C (Cmd+C).';
   }
-
-  makeKeyBtn.addEventListener('click', function () {
-    keyStatus.className = 'key-status-msg';
-    keyStatus.textContent = 'Creating a free key…';
-    makeKeyBtn.disabled = true;
-    fetch('/api/free-key', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ label: 'homepage' })
-    }).then(function (r) {
-      if (!r.ok) {
-        throw new Error('HTTP ' + r.status);
-      }
-      return r.json();
-    }).then(function (data) {
-      makeKeyBtn.disabled = false;
-      if (!data || !data.key) {
-        keyStatus.className = 'key-status-msg err';
-        keyStatus.textContent = (data && data.error) || 'Could not create a key. Open /app instead.';
-        return;
-      }
-      setPrompt(currentMode, data.key);
-      keyStatus.className = 'key-status-msg ok';
-      keyStatus.textContent = 'Key created and added to prompt. Save it now — this page will not display it again.';
-    }).catch(function (err) {
-      makeKeyBtn.disabled = false;
-      keyStatus.className = 'key-status-msg err';
-      keyStatus.textContent = 'Could not create a key (' + (err.message || 'network') + '). Open /app instead.';
-    });
-  });
 
   loadPreview('free');
 })();

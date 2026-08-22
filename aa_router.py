@@ -23,7 +23,8 @@ import combo_resolver as cr
 import aa_catalog
 
 QUALITY_BAND = float(os.environ.get("AA_QUALITY_BAND", "0.20"))
-LENS_COMBOS = ("value", "frontier", "fast", "vision", "custom", "free")
+LENS_COMBOS = ("value", "frontier", "speed", "vision", "custom", "free", "fast")
+LEGACY_LENS_ALIASES = {"fast": "speed"}
 
 
 @dataclass
@@ -126,6 +127,9 @@ def pick(mode: str, pool: list[dict[str, Any]],
          catalog: Optional[aa_catalog.Catalog] = None,
          weights: Optional[tuple[float, float, float]] = None) -> Optional[Pick]:
     """Pick a Surplus model for an AA lens. pool is already class-filtered."""
+    mode = LEGACY_LENS_ALIASES.get(mode.lower().strip(), mode.lower().strip())
+    if mode == "speed":
+        mode = "fast"
     if not pool:
         return None
     cands = annotate(pool, catalog)

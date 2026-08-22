@@ -13,6 +13,7 @@ import re
 import threading
 import time
 import urllib.request
+from urllib.error import HTTPError
 from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Any, Optional
@@ -24,7 +25,7 @@ SNAPSHOT_PATH = Path(os.environ.get(
 AA_FREE_URL = os.environ.get(
     "AA_FREE_URL", "https://artificialanalysis.ai/api/v2/language/models/free"
 )
-TTL_SECONDS = int(os.environ.get("AA_SYNC_SECONDS", "21600"))
+TTL_SECONDS = int(os.environ.get("AA_SYNC_SECONDS", "86400"))
 MAX_PAGES = int(os.environ.get("AA_MAX_PAGES", "10"))
 REQUEST_TIMEOUT = float(os.environ.get("AA_HTTP_TIMEOUT", "25"))
 
@@ -215,14 +216,20 @@ def _http_get(url: str, api_key: str) -> dict[str, Any]:
             "Accept": "application/json",
         },
     )
-    with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except HTTPError as exc:
+        if exc.code == 429:
+            retry_after = exc.headers.get("Retry-After", "")
+            raise RuntimeError(f"Artificial Analysis rate limit (Retry-After: {retry_after or 'unknown'})") from exc
+        raise
 
 
 def fetch_remote(api_key: Optional[str] = None) -> Catalog:
-    key = api_key or os.environ.get("AA_API_KEY", "")
+    key = api_key or os.environ.get("ARTIFICIAL_ANALYSIS_API_KEY") or os.environ.get("AA_API_KEY", "")
     if not key:
-        raise RuntimeError("AA_API_KEY is not set")
+        raise RuntimeError("ARTIFICIAL_ANALYSIS_API_KEY or AA_API_KEY is not set")
     rows: list[dict[str, Any]] = []
     page = 1
     version = None
@@ -252,7 +259,7 @@ def get_catalog(force_refresh: bool = False) -> Catalog:
             _cache = load_snapshot()
         cat = _cache
         stale = (time.time() - cat.fetched_at) > TTL_SECONDS or force_refresh
-        if stale and not _refreshing and os.environ.get("AA_API_KEY"):
+        if stale and not _refreshing and (os.environ.get("ARTIFICIAL_ANALYSIS_API_KEY") or os.environ.get("AA_API_KEY")):
             _refreshing = True
             t = threading.Thread(target=_refresh_worker, daemon=True)
             t.start()
@@ -266,8 +273,11 @@ def _refresh_worker() -> None:
         save_snapshot(cat)
         with _lock:
             _cache = cat
-    except Exception:
-        pass
+    except Exception as exc:
+        with _lock:
+            age = max(0, time.time() - (_cache.fetched_at if _cache else 0))
+        import logging
+        logging.getLogger(__name__).warning("Artificial Analysis refresh failed after %.0fs: %s", age, exc)
     finally:
         with _lock:
             _refreshing = False

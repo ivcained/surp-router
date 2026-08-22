@@ -74,7 +74,8 @@ BUILTIN_COMBOS: list[str] = [
 COMBO_DESCRIPTIONS: dict[str, str] = {
     "value": "capable models (AA score within 20% of the best), then max Surplus discount vs AA list price",
     "frontier": "highest Artificial Analysis Intelligence Index, then Surplus discount",
-    "fast": "highest AA median tokens/sec inside the 20% quality band",
+    "speed": "highest AA median tokens/sec inside the 20% quality band",
+    "fast": "legacy alias for the speed route",
     "vision": "multimodal / vision pool, then the value rule",
     "custom": "your intelligence / speed / discount mix (surp_weights=cost:intel:speed)",
     "best-coding": "cheapest coding-class model (coder / codex / qwen3-coder)",
@@ -201,6 +202,9 @@ def is_sellable(m: dict) -> bool:
 def pool_for(combo: str, markets: list[dict]) -> list[dict]:
     """Return the candidate models a combo compares, cheapest-first.
 
+    ``fast`` is a public legacy alias and intentionally retains the old
+    best-fast behavior; ``speed`` is the new AA speed lens.
+
     Only sellable models (positive liquidity + healthy seller) are considered,
     so we never route to a model no seller can actually serve.
     """
@@ -212,7 +216,9 @@ def pool_for(combo: str, markets: list[dict]) -> list[dict]:
         wanted = combo[7:]
         pool = [m for m in all_text if m["model"].lower() == wanted.lower()]
         return pool
-    if combo in ("value", "frontier", "fast", "custom"):
+    if combo in ("value", "frontier", "speed", "custom"):
+        return sorted(all_text, key=price_of)
+    if combo == "fast":
         return sorted(all_text, key=price_of)
     if combo == "vision":
         return sorted([m for m in all_text if is_vision(m)], key=price_of)
@@ -228,6 +234,10 @@ def pool_for(combo: str, markets: list[dict]) -> list[dict]:
     else:
         if combo in ("coding", "chat"):
             tier, cls = "best", combo
+        elif combo == "speed":
+            tier, cls = "best", "fast"
+        elif combo == "fast":
+            tier, cls = "best", "fast"
         elif combo.startswith("best-"):
             tier, cls = "best", combo[5:]
         elif combo.startswith("pro-"):

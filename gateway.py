@@ -1574,6 +1574,12 @@ async def api_route_preview(request: web.Request) -> web.Response:
     picked = aa_router.pick(mode, pool, weights=weights)
     body = aa_router.preview_dict(picked, mode)
     body["description"] = cr.COMBO_DESCRIPTIONS.get(mode, "")
+    cat = aa_catalog.get_catalog()
+    body["aa_catalog"] = {
+        "source": cat.source,
+        "snapshot_age_seconds": max(0, int(time.time() - cat.fetched_at)),
+        "intelligence_index_version": cat.intelligence_index_version,
+    }
     return web.json_response(body)
 
 
