@@ -352,6 +352,9 @@
       .dash-topbar {
         flex-wrap: wrap; padding: 9px 12px; row-gap: 8px;
       }
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+      }
       /* Wallet takes the full top row; logout drops to row 2, right-aligned */
       .dash-actions {
         flex-basis: 100%; justify-content: space-between;

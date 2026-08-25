@@ -31,7 +31,7 @@ interface PaymentRequired {
 }
 
 export function ApiKeys() {
-  const [keys, setKeys] = useState<ApiKey[]>([])
+  const authFetch = useAuthFetch()
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
   const [newName, setNewName] = useState('')
@@ -69,6 +69,10 @@ export function ApiKeys() {
   useEffect(() => { loadKeys() }, [])
 
   const handleCreate = async () => {
+    if (paymentRequired && !paymentHeader) {
+      setCreateError('Paste the completed x402 payment signature before submitting again.')
+      return
+    }
     setCreateError('')
     setPaymentRequired(null)
     setPaymentHeader('')

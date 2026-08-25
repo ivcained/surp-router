@@ -91,10 +91,17 @@ export function Nav({
 
   // Close drawer on Escape
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setDrawerOpen(false) }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setDrawerOpen(false)
+    }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [])
+
+  useEffect(() => {
+    document.body.style.overflow = drawerOpen ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [drawerOpen])
 
   // Persist sidebar scroll position across page navigations: save on link
   // click (before the browser navigates), restore on mount. Prevents the
@@ -110,8 +117,16 @@ export function Nav({
       let saved: string | null = null
       try { saved = sessionStorage.getItem(SB_SCROLL_KEY) } catch (e) {}
       if (saved !== null) {
-        // Restore after a tick so layout settles.
-        requestAnimationFrame(() => { sb.scrollTop = parseInt(saved, 10) || 0 })
+        const target = parseInt(saved, 10) || 0
+        const restore = () => {
+          const max = Math.max(0, sb.scrollHeight - sb.clientHeight)
+          sb.scrollTop = Math.min(Math.max(0, target), max)
+        }
+        restore()
+        const first = requestAnimationFrame(restore)
+        const second = window.setTimeout(restore, 100)
+        const third = window.setTimeout(restore, 400)
+        return () => { cancelAnimationFrame(first); clearTimeout(second); clearTimeout(third) }
       }
     }
   }, [])
@@ -121,10 +136,13 @@ export function Nav({
       {/* Backdrop — mobile only */}
       {drawerOpen && (
         <div
+          role="presentation"
+          aria-hidden="true"
           onClick={() => setDrawerOpen(false)}
           style={{
             position: 'fixed', inset: 0, zIndex: 59,
             background: 'rgba(0,0,0,0.7)',
+            opacity: 1, transition: 'opacity 0.18s ease',
           }}
         />
       )}
@@ -140,6 +158,7 @@ export function Nav({
           overflowY: 'auto', zIndex: 60,
           display: 'flex', flexDirection: 'column',
           transition: 'transform 0.25s ease',
+          transform: drawerOpen ? 'translateX(0)' : 'translateX(-100%)',
         }}
       >
         {/* Brand */}
@@ -158,7 +177,7 @@ export function Nav({
           {DASH_PAGES.map(p => (
             <button
               key={p.id}
-              onClick={() => { saveSidebarScroll(); setPage(p.id) }}
+              onClick={() => { saveSidebarScroll(); setPage(p.id); setDrawerOpen(false) }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left',
                 background: page === p.id ? 'linear-gradient(90deg, rgba(0,255,156,0.14), rgba(0,255,156,0.03))' : 'transparent',
@@ -193,7 +212,7 @@ export function Nav({
                 <a
                   key={p.path}
                   href={p.path}
-                  onClick={saveSidebarScroll}
+                  onClick={() => { saveSidebarScroll(); setDrawerOpen(false) }}
                   className={isActive ? 'nav-item-active' : ''}
                   style={{
                     display: 'block',
