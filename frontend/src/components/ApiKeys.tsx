@@ -10,15 +10,27 @@ interface ApiKey {
 }
 
 interface CreateResult {
-  key: string
-  key_id: string
-  name: string
-  budget_cents: number
-  warning: string
+  key?: string
+  key_id?: string
+  name?: string
+  budget_cents?: number
+  prepaid_usdc?: string
+  tx_hash?: string
+  warning?: string
+}
+
+interface PaymentRequired {
+  status?: number
+  error?: string
+  resource?: string
+  amount?: string
+  price_usd?: string
+  payTo?: string
+  network?: string
+  asset?: string
 }
 
 export function ApiKeys() {
-  const authFetch = useAuthFetch()
   const [keys, setKeys] = useState<ApiKey[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
@@ -28,6 +40,8 @@ export function ApiKeys() {
   const [copied, setCopied] = useState(false)
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState('')
+  const [paymentRequired, setPaymentRequired] = useState<PaymentRequired | null>(null)
+  const [paymentHeader, setPaymentHeader] = useState('')
   const [copiedUrl, setCopiedUrl] = useState(false)
 
   const API_BASE_URL = 'https://surp.ivc.lol/v1'
@@ -56,6 +70,8 @@ export function ApiKeys() {
 
   const handleCreate = async () => {
     setCreateError('')
+    setPaymentRequired(null)
+    setPaymentHeader('')
     setCreating(true)
     try {
       const amountUsdc = parseFloat(newBudget)
@@ -64,8 +80,11 @@ export function ApiKeys() {
         setCreating(false)
         return
       }
+      const requestHeaders: Record<string, string> = {}
+      if (paymentHeader) requestHeaders['PAYMENT-SIGNATURE'] = paymentHeader
       const res = await authFetch('/api/user/api-keys', {
         method: 'POST',
+        headers: requestHeaders,
         body: JSON.stringify({ name: newName, amount_usdc: amountUsdc }),
       })
       const data = await res.json()
@@ -75,6 +94,9 @@ export function ApiKeys() {
         setNewBudget('')
         setShowCreate(false)
         loadKeys()
+      } else if (res.status === 402 && data?.error === 'payment-required') {
+        setPaymentRequired({ ...data, status: res.status })
+        setCreateError('Payment is required. The page currently cannot initiate a wallet payment automatically. Fund your account in Wallet, or paste a valid x402 payment signature and submit again.')
       } else {
         // Show the actual error from the API (e.g. "unauthorized", "budget must be >= 0")
         setCreateError(data.error || `request failed (${res.status})`)
@@ -109,6 +131,19 @@ export function ApiKeys() {
     <div>
       <h1>API Keys</h1>
       <p className="sub">create keys with per-key spend budgets</p>
+
+      {paymentRequired && (
+        <div className="card" style={{ border: '1px solid #ffd23f', marginBottom: 16 }}>
+          <h2 style={{ color: '#ffd23f' }}>Payment required</h2>
+          <p className="dim">This is a prepaid API key. Send the exact amount below in USDC on Base, then submit the form again with the payment signature.</p>
+          <p><strong>{paymentRequired.price_usd || 'Required amount'} USDC</strong> on <strong>Base</strong></p>
+          {paymentRequired.payTo && <p className="dim" style={{ wordBreak: 'break-all', fontSize: 12 }}>Recipient: {paymentRequired.payTo}</p>}
+          <label className="dim" style={{ display: 'block', marginTop: 12 }}>Payment signature (optional after wallet payment)</label>
+          <textarea value={paymentHeader} onChange={(e) => setPaymentHeader(e.target.value)} placeholder="Paste the x402 payment signature here" style={{ ...inputStyle, minHeight: 80, fontFamily: 'monospace' }} />
+          <p className="dim" style={{ fontSize: 12 }}>The wallet payment step is not connected to this form yet. Open the Wallet page to fund your account, or use the API’s x402-capable client.</p>
+          <button className="btn btn-outline" onClick={() => setPaymentRequired(null)}>Close</button>
+        </div>
+      )}
 
       {/* Created key modal — shown only once */}
       {createdKey && (
