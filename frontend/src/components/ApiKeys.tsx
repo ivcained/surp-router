@@ -58,10 +58,15 @@ export function ApiKeys() {
     setCreateError('')
     setCreating(true)
     try {
-      const budgetCents = Math.round((parseFloat(newBudget) || 0) * 100)
+      const amountUsdc = parseFloat(newBudget)
+      if (!Number.isFinite(amountUsdc) || amountUsdc < 1) {
+        setCreateError('Enter at least 1.00 USDC to fund the key.')
+        setCreating(false)
+        return
+      }
       const res = await authFetch('/api/user/api-keys', {
         method: 'POST',
-        body: JSON.stringify({ name: newName, budget_cents: budgetCents }),
+        body: JSON.stringify({ name: newName, amount_usdc: amountUsdc }),
       })
       const data = await res.json()
       if (res.ok) {
@@ -184,7 +189,7 @@ print(resp.choices[0].message.content)`}
             style={inputStyle}
           />
           <label className="dim" style={{ display: 'block', marginBottom: 4, marginTop: 12 }}>
-            Spend budget (USD) — 0 for unlimited
+            Spend amount (USDC)
           </label>
           <input
             type="text"
@@ -194,7 +199,7 @@ print(resp.choices[0].message.content)`}
             style={inputStyle}
           />
           <p className="dim" style={{ fontSize: 11, marginTop: 4 }}>
-            The key will stop working once it reaches this budget. Set 0 for unlimited.
+            Enter the amount of USDC to deposit into this prepaid API key. Minimum $1.00.
           </p>
           <div style={{ marginTop: 16 }}>
             <button className="btn" onClick={handleCreate} disabled={creating}>
