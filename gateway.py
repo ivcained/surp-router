@@ -564,6 +564,8 @@ def _render_html(content: str, path: str = "/") -> str:
     meta = PAGE_META.get(path, PAGE_META["/"])
     import json as _json
     html = _HTML_BASE.replace("__CONTENT__", content)
+    cache_stats = _RESPONSE_CACHE.stats()
+    html = html.replace("__CACHE_STATS__", f"{cache_stats.get('hit_rate_pct', 0):g}% hist / {cache_stats.get('live_entries', 0)} live")
     html = html.replace("__TITLE__", meta["title"])
     html = html.replace("__DESC__", meta["desc"])
     html = html.replace("__PATH__", path)
@@ -2140,7 +2142,7 @@ _HTML_BASE = r"""<!DOCTYPE html>
         <span>usdc/base <b>$1.00</b></span><i>│</i>
         <span>tps <b>847</b> ↑</span><i>│</i>
         <span>ttft <b>120ms</b> ↓</span><i>│</i>
-        <span>cache <b>{_RESPONSE_CACHE.stats().get('hit_rate_pct', 0):g}% hist / {_RESPONSE_CACHE.stats().get('live_entries', 0)} live</b></span><i>│</i>
+        <span>cache <b>__CACHE_STATS__</b></span><i>│</i>
         <span>models live <b>1,204</b></span><i>│</i>
         <span>srp pool <b>2.4M</b> ↑</span><i>│</i>
         <span>surp/free <b>$0.00</b> free</span><i>│</i>
@@ -2149,7 +2151,7 @@ _HTML_BASE = r"""<!DOCTYPE html>
         <span>usdc/base <b>$1.00</b></span><i>│</i>
         <span>tps <b>847</b> ↑</span><i>│</i>
         <span>ttft <b>120ms</b> ↓</span><i>│</i>
-        <span>cache <b>{_RESPONSE_CACHE.stats().get('hit_rate_pct', 0):g}% hist / {_RESPONSE_CACHE.stats().get('live_entries', 0)} live</b></span><i>│</i>
+        <span>cache <b>__CACHE_STATS__</b></span><i>│</i>
         <span>models live <b>1,204</b></span><i>│</i>
         <span>srp pool <b>2.4M</b> ↑</span><i>│</i>
       </div>
