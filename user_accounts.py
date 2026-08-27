@@ -222,7 +222,9 @@ def check_budget(key_id: str, cost_cents: int) -> bool:
             ).fetchone()
             if not row:
                 return False
-            if row["budget_cents"] > 0 and row["spent_cents"] + cost_cents > row["budget_cents"]:
+            if row["budget_cents"] <= 0:
+                return False
+            if row["spent_cents"] + cost_cents > row["budget_cents"]:
                 return False
             conn.execute(
                 "UPDATE api_keys SET spent_cents = spent_cents + ? WHERE key_id=?",
