@@ -117,7 +117,7 @@ CONTENT = r'''
 <div class="home-focus">
   <section class="home-hero">
     <h1>Spend less on every AI call.</h1>
-    <p class="home-lede">Surp uses live SurplusIntelligence.ai market prices, picks a model for the route you choose, and reuses identical answers for $0.001. Pay in USDC on Base. No subscription.</p>
+    <p class="home-lede">Surp uses live SurplusIntelligence.ai market prices, picks a model for the route you choose, and reuses identical answers for $0.001. Connect once and pay in USDC on Base.</p>
     <div class="home-actions">
       <a href="#try" class="home-primary-cta">Try it free</a>
       <a href="#connect" class="home-secondary">Connect your agent →</a>
