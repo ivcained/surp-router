@@ -1681,7 +1681,7 @@ async def page_connect(request: web.Request) -> web.Response:
 def _render_status_content(s: dict, health: dict) -> str:
     """Render the status page from live stats."""
     total = s.get("total_requests", 0)
-    usd_cents = s.get("total_usdc_cents", 0)
+    usd_cents = s.get("x402_settled_usdc_cents", 0)
     req_24h = s.get("requests_24h", 0)
     payers = s.get("unique_payers", 0)
     top_combos = s.get("top_combos", [])
@@ -1714,7 +1714,8 @@ def _render_status_content(s: dict, health: dict) -> str:
 <div class="grid">
   <div class="card"><div class="num">{total}</div><div class="lbl">total requests served</div></div>
   <div class="card"><div class="num">{req_24h}</div><div class="lbl">requests (24h)</div></div>
-  <div class="card"><div class="num">${usd_cents / 100:.2f}</div><div class="lbl">total USDC settled</div></div>
+  <div class="card"><div class="num">${usd_cents / 100:.2f}</div><div class="lbl">x402 USDC settled</div></div>
+  <div class="card"><div class="num">${s.get('api_key_accounting_usdc_cents', 0) / 100:.2f}</div><div class="lbl">API-key usage tracked</div></div>
   <div class="card"><div class="num">{payers}</div><div class="lbl">unique wallets</div></div>
 </div>
 

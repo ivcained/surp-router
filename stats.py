@@ -166,6 +166,14 @@ def global_stats() -> dict:
         total_usd = c.execute(
             "SELECT COALESCE(SUM(amount_usdc_microcents), 0) as s FROM requests"
         ).fetchone()["s"]
+        x402_total = c.execute(
+            "SELECT COALESCE(SUM(amount_usdc_microcents), 0) as s FROM requests "
+            "WHERE payment_method = 'x402' AND tx_hash != ''"
+        ).fetchone()["s"]
+        api_key_total = c.execute(
+            "SELECT COALESCE(SUM(amount_usdc_microcents), 0) as s FROM requests "
+            "WHERE payment_method = 'api_key'"
+        ).fetchone()["s"]
         last_24h = c.execute(
             "SELECT COUNT(*) as n FROM requests WHERE ts >= ?", (int(time.time()) - 86400,)
         ).fetchone()["n"]
@@ -184,7 +192,9 @@ def global_stats() -> dict:
         ).fetchone()["t"]
         return {
             "total_requests": total,
-            "total_usdc_cents": total_usd // 100 if total_usd else 0,
+            "total_usdc_cents": total_usd // 10_000 if total_usd else 0,
+            "x402_settled_usdc_cents": x402_total // 10_000 if x402_total else 0,
+            "api_key_accounting_usdc_cents": api_key_total // 10_000 if api_key_total else 0,
             "requests_24h": last_24h,
             "unique_payers": unique_payers,
             "top_combos": [{"combo": r["combo"], "count": r["n"]} for r in top_combos],
