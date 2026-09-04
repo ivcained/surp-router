@@ -561,6 +561,16 @@ JSONLD_ORG = {
 }
 
 
+def _model_count_str() -> str:
+    """Single source for every "N models" claim in the shell ticker and the
+    homepage hero proof, so the two can never disagree."""
+    try:
+        n = sum(1 for m in (GCACHE._markets or []) if cr.is_text_llm(m))
+    except Exception:
+        n = 0
+    return f"{n:,}" if n else "150+"
+
+
 def _render_html(content: str, path: str = "/") -> str:
     """Fill in the page template with SEO meta for the given path."""
     meta = PAGE_META.get(path, PAGE_META["/"])
@@ -568,6 +578,7 @@ def _render_html(content: str, path: str = "/") -> str:
     html = _HTML_BASE.replace("__CONTENT__", content)
     cache_stats = _RESPONSE_CACHE.stats()
     html = html.replace("__CACHE_STATS__", f"{cache_stats.get('hit_rate_pct', 0):g}% hist / {cache_stats.get('live_entries', 0)} live")
+    html = html.replace("__MODEL_COUNT__", _model_count_str())
     html = html.replace("__TITLE__", meta["title"])
     html = html.replace("__DESC__", meta["desc"])
     html = html.replace("__PATH__", path)
@@ -1967,7 +1978,7 @@ _HTML_BASE = r"""<!DOCTYPE html>
   .announce {
     display: flex; align-items: center; gap: 10px;
     background: linear-gradient(135deg, #0a1418, #0a1a14);
-    border: 1px solid #1a3a3a; border-left: 3px solid #5ce1ff;
+    border: 1px solid #1a3a3a;
     padding: 10px 14px; margin: 8px 0 16px; font-size: 13px; line-height: 1.5;
     border-radius: 3px;
   }
@@ -2000,7 +2011,6 @@ _HTML_BASE = r"""<!DOCTYPE html>
   }
   .site-brand strong {
     display: block; color: var(--accent); font-size: 20px; line-height: 1;
-    text-shadow: 0 0 12px rgba(0,255,156,.35), 0 0 4px rgba(0,255,156,.6);
   }
   .site-brand small { display: block; color: #555; font-size: 10px; margin-top: 7px; }
   .site-menu {
@@ -2024,22 +2034,18 @@ _HTML_BASE = r"""<!DOCTYPE html>
     color: var(--accent); background: rgba(0,255,156,.06);
     border-left-color: var(--accent); text-decoration: none;
   }
-  /* Selected page — phosphor glow so the active menu item "lights up". */
+  /* Selected page — background tint + border accent so the active item stands out. */
   .site-menu a.active {
     color: var(--accent);
-    background: linear-gradient(90deg, rgba(0,255,156,.14), rgba(0,255,156,.03));
+    background: rgba(0,255,156,.10);
     border-left-color: var(--accent);
     font-weight: 700;
-    box-shadow: inset 0 0 12px rgba(0,255,156,.12), 0 0 10px rgba(0,255,156,.18);
-    text-shadow: 0 0 8px rgba(0,255,156,.55);
   }
   .site-menu a.docs-link {
     color: var(--accent); font-weight: 700; border-left-color: var(--accent);
   }
   .site-menu a.docs-link.active {
-    background: linear-gradient(90deg, rgba(0,255,156,.16), rgba(0,255,156,.04));
-    box-shadow: inset 0 0 14px rgba(0,255,156,.14), 0 0 12px rgba(0,255,156,.22);
-    text-shadow: 0 0 8px rgba(0,255,156,.6);
+    background: rgba(0,255,156,.14);
   }
   /* Homepage keeps the full menu behind a hamburger on every width. */
   body.home-page .site-sidebar {
@@ -2063,8 +2069,7 @@ _HTML_BASE = r"""<!DOCTYPE html>
     display: inline-block; width: 7px; height: 7px; margin-right: 7px;
     border-radius: 50%; background: var(--accent); vertical-align: middle;
     animation: pulse 1.5s ease-in-out infinite;
-    box-shadow: 0 0 6px rgba(0,255,156,.7);
-  }
+      }
   .site-main { margin-left: 240px; min-width: 0; }
   .market-ticker {
     height: 32px; display: flex; align-items: center; overflow: hidden;
@@ -2101,15 +2106,10 @@ _HTML_BASE = r"""<!DOCTYPE html>
   .site-actions a:hover { color: var(--accent); border-color: var(--accent); text-decoration: none; }
   .site-actions .account-link {
     color: var(--accent); border-color: var(--accent); border-radius: 16px;
-    text-shadow: 0 0 8px rgba(0,255,156,.45);
-  }
+      }
   .site-content { max-width: 1200px; margin: 0 auto; padding: 22px 24px 60px; }
-  /* Hide the legacy inline nav — the universal sidebar + mobile drawer
-     handle navigation on all screen sizes. The old <nav> lives inside
-     .container (a descendant), so use the descendant selector. */
-  .site-content nav { display: none; }
   .site-content .announce { margin-top: 0; }
-  .site-content h1 { color: var(--accent); text-shadow: 0 0 10px rgba(0,255,156,.22); }
+  .site-content h1 { color: var(--accent); }
   .site-content .card { border-radius: 6px; transition: border-color .2s, box-shadow .2s; }
   .site-content .card:hover { border-color: var(--border-bright); }
 
@@ -2125,6 +2125,11 @@ _HTML_BASE = r"""<!DOCTYPE html>
     background: rgba(0,0,0,.7); opacity: 0; transition: opacity .2s;
   }
   .site-backdrop.open { display: block; opacity: 1; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .market-track { animation: none; transform: none; }
+    .announce .announce-pulse { animation: none; }
+  }
 
   @media (max-width: 900px) {
     .site-sidebar {
@@ -2190,7 +2195,7 @@ _HTML_BASE = r"""<!DOCTYPE html>
         <span>tps <b>847</b> ↑</span><i>│</i>
         <span>ttft <b>120ms</b> ↓</span><i>│</i>
         <span>cache <b>__CACHE_STATS__</b></span><i>│</i>
-        <span>models live <b>1,204</b></span><i>│</i>
+        <span>models live <b>__MODEL_COUNT__</b></span><i>│</i>
         <span>srp pool <b>2.4M</b> ↑</span><i>│</i>
         <span>surp/free <b>$0.00</b> free</span><i>│</i>
         <span>surp/best-chat <b>$0.012</b> ↓</span><i>│</i>
@@ -2199,7 +2204,7 @@ _HTML_BASE = r"""<!DOCTYPE html>
         <span>tps <b>847</b> ↑</span><i>│</i>
         <span>ttft <b>120ms</b> ↓</span><i>│</i>
         <span>cache <b>__CACHE_STATS__</b></span><i>│</i>
-        <span>models live <b>1,204</b></span><i>│</i>
+        <span>models live <b>__MODEL_COUNT__</b></span><i>│</i>
         <span>srp pool <b>2.4M</b> ↑</span><i>│</i>
       </div>
     </div>
@@ -2216,28 +2221,6 @@ _HTML_BASE = r"""<!DOCTYPE html>
     <div class="site-backdrop" id="site-backdrop" onclick="closeSidebar()"></div>
     <div class="site-content">
 <div class="container">
-<nav>
-  <a href="/" class="brand" style="text-decoration:none;">surp.ivc.lol</a>
-  <ul>
-    <li><a href="/">home</a></li>
-    <li><a href="/docs">docs</a></li>
-    <li><a href="/status">status</a></li>
-    <li><a href="/connect">connect</a></li>
-    <li><a href="/builder">builder</a></li>
-    <li><a href="/free-models" style="color:#5ce1ff;">free</a></li>
-    <li><a href="/health">health</a></li>
-    <li><a href="/features">updates</a></li>
-    <li><a href="/auction" style="color:#5ce1ff;">auction</a></li>
-    <li><a href="/performance" style="color:#5ce1ff;">TPS</a></li>
-    <li><a href="/app" style="color:#00ff9c;font-weight:bold;">login</a></li>
-    <li><a href="/top">models</a></li>
-    <li><a href="/find">find</a></li>
-    <li><a href="/dashboard">usage</a></li>
-    <li><a href="/playground">playground</a></li>
-    <li><a href="/about">about</a></li>
-    <li><a href="/api/health">api</a></li>
-  </ul>
-</nav>
 <div id="announce-banner" class="announce __ANNOUNCE_CLASS__">
   <span class="announce-pulse" aria-hidden="true"></span>
   <span class="announce-text">
@@ -2259,12 +2242,9 @@ __CONTENT__
       <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
     </a>
   </div>
-  surp.ivc.lol &middot; aggregating the aggregator &middot; built for the community &middot; <a href="https://github.com/ivcained/surp-router">source on GitHub</a> &middot; <a href="https://github.com/x402-foundation/x402">x402 protocol</a> &middot; <a href="https://www.surplusintelligence.ai">surplus intelligence</a>
-  <p class="dim" style="margin-top:8px;font-size:10px;">
-    x402 LLM gateway · OpenAI-compatible API · pay per request in USDC on Base · cheapest AI models from the Surplus Intelligence marketplace · no account needed · no API key required
-  </p>
-  <p class="dim" style="margin-top:6px;font-size:10px;">
-    <a href="/x402">what is x402</a> · <a href="/x402-llm-api">x402 LLM API</a> · <a href="/x402-gateway">x402 gateway</a> · <a href="/pay-per-request-llm-api">pay-per-request LLM API</a> · <a href="/cheapest-llm-api">cheapest LLM API</a> · <a href="/free-models">free AI models</a> · <a href="/health">health board</a> · <a href="/performance">verified TPS</a> · <a href="/app">login &amp; wallet</a> · <a href="/features">features &amp; updates</a> · <a href="/auction">cache auction</a> · <a href="/cache">cache-aware routing</a> · <a href="/proposal">reward proposal</a> · <a href="/token-gating">token-gating</a> · <a href="/pitch">pitch deck</a>
+  surp.ivc.lol &middot; built for the community
+  <p class="dim" style="margin-top:8px;font-size:12px;">
+    <a href="/docs">docs</a> · <a href="/status">status</a> · <a href="/prices">prices</a> · <a href="/free-models">free models</a> · <a href="/app">account</a> · <a href="https://github.com/ivcained/surp-router">source on GitHub</a> · <a href="https://github.com/x402-foundation/x402">x402 protocol</a>
   </p>
 </footer>
 </div>
