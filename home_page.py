@@ -7,11 +7,11 @@ CONTENT = r'''
 }
 .home-focus { max-width: 980px; margin: 0 auto; }
 .home-hero { min-height: calc(100vh - 160px); display:flex; flex-direction:column; justify-content:center; padding:56px 0 64px; }
-.home-hero h1 { max-width:820px; font-size:clamp(38px,7vw,74px); line-height:1.02; letter-spacing:-2.5px; margin:0 0 20px; font-weight:800; color:var(--accent); text-shadow:0 0 16px rgba(0,255,156,.28); }
+.home-hero h1 { max-width:820px; font-size:clamp(38px,7vw,74px); line-height:1.02; letter-spacing:-2.5px; margin:0 0 20px; font-weight:800; color:var(--accent); }
 .home-lede { max-width:720px; color:var(--fg); font-size:clamp(15px,2vw,18px); line-height:1.65; margin:0 0 28px; font-weight:400; }
 .home-actions { display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
-.home-primary-cta { display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:12px 24px; color:#00150d; background:var(--accent); border:1px solid var(--accent); border-radius:4px; font-size:15px; font-weight:800; letter-spacing:0.2px; text-decoration:none; box-shadow:0 0 24px rgba(0,255,156,.28); transition:transform .15s, box-shadow .15s; }
-.home-primary-cta:hover { color:#00150d; text-decoration:none; transform:translateY(-1px); box-shadow:0 0 32px rgba(0,255,156,.42); }
+.home-primary-cta { display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:12px 24px; color:#00150d; background:var(--accent); border:1px solid var(--accent); border-radius:4px; font-size:15px; font-weight:800; letter-spacing:0.2px; text-decoration:none; transition:transform .15s, box-shadow .15s; }
+.home-primary-cta:hover { color:#00150d; text-decoration:none; transform:translateY(-1px); }
 .home-primary-cta:focus-visible { outline:none; box-shadow:var(--focus-ring); }
 .home-secondary { display:inline-flex; align-items:center; min-height:44px; color:var(--fg-dim); font-size:14px; text-decoration:none; transition:color .15s; padding:0 4px; }
 .home-secondary:hover { color:var(--accent); text-decoration:underline; }
@@ -44,6 +44,9 @@ CONTENT = r'''
 .demo-buttons button:focus-visible { outline:none; box-shadow:var(--focus-ring); border-color:var(--accent); }
 .demo-buttons button.active { border-color:var(--accent); color:var(--accent); background:rgba(0,255,156,.06); font-weight:700; }
 .demo-buttons button.active:focus-visible { outline:none; box-shadow:var(--focus-ring); }
+.demo-route-hint { margin:8px 0 0; color:var(--fg-dim); font-size:12px; line-height:1.5; }
+.demo-sample-note { margin:4px 0 0; color:var(--fg-dim); font-size:11px; line-height:1.4; }
+.demo-prompt textarea[readonly] { cursor:default; opacity:.85; }
 .demo-custom { display:none; margin-top:16px; padding-top:14px; border-top:1px dashed var(--border); }
 .demo-custom.open { display:block; }
 .demo-custom p { margin-bottom:10px; font-size:12px; }
@@ -81,6 +84,8 @@ CONTENT = r'''
 .connection-step { padding:20px; border:1px solid var(--border); background:var(--bg-alt); border-radius:4px; }
 .connection-step b { display:block; color:var(--accent); font-size:14px; margin-bottom:6px; }
 .connection-step p { color:var(--fg-dim); font-size:13px; line-height:1.55; margin:0; }
+.trust-strip { margin:0 0 16px; padding:12px 18px; border:1px solid var(--accent-dim); background:rgba(0,255,156,.04); border-radius:4px; color:var(--fg); font-size:13px; line-height:1.6; }
+.trust-strip b { color:var(--accent); }
 .warn-note { margin:16px 0; padding:14px 18px; border:1px solid var(--border-bright); background:rgba(255,210,63,.03); border-radius:4px; color:var(--fg); font-size:13px; line-height:1.6; }
 .warn-note code { font-size:11px; }
 .funding-path { border:1px solid var(--border); margin-top:10px; background:var(--bg-alt); border-radius:4px; }
@@ -124,7 +129,7 @@ CONTENT = r'''
     </div>
     <div class="home-proof">
       <div class="home-proof-item">
-        <b>145+ models</b>
+        <b>__MODEL_COUNT__ models</b>
         <span>one OpenAI-compatible endpoint</span>
       </div>
       <div class="home-proof-item">
@@ -147,10 +152,11 @@ CONTENT = r'''
     <p class="home-section-intro">No wallet. No account. No API key. Start on Free. See which live model Surp would pick, then copy a prompt into your agent.</p>
     <div class="demo-shell">
       <div class="demo-prompt">
-        <label for="demo-text">Your prompt</label>
-        <textarea id="demo-text">Say only the word PONG.</textarea>
+        <label for="demo-text">Sample prompt</label>
+        <textarea id="demo-text" readonly aria-readonly="true" aria-describedby="demo-sample-note">Say only the word PONG.</textarea>
+        <p class="demo-sample-note" id="demo-sample-note">Read-only sample of what a request looks like — the route picker below picks the live model and price for this call.</p>
         <span class="demo-buttons-label">Choose a route</span>
-        <div class="demo-buttons" role="group" aria-label="route">
+        <div class="demo-buttons" role="group" aria-label="route" aria-describedby="route-hint">
           <button class="active" data-mode="free">Free</button>
           <button data-mode="value">Value</button>
           <button data-mode="frontier">Frontier</button>
@@ -158,6 +164,7 @@ CONTENT = r'''
           <button data-mode="vision">Vision</button>
           <button data-mode="custom">Custom</button>
         </div>
+        <p class="demo-route-hint" id="route-hint">Free = $0, daily cap · Value = smart + cheap · Frontier = best quality · Fast = lowest latency · Vision = images · Custom = tune weights</p>
         <div class="demo-custom" id="demo-custom">
           <p class="dim">Set how much intelligence, speed, and discount matter. Cost here is Surplus % off the AA list price.</p>
           <div class="sliders">
@@ -214,7 +221,9 @@ Do not expect a SurplusIntelligence balance here. This key only works on this ba
       </div>
     </div>
 
-    <div class="warn-note">This is not your SurplusIntelligence login. Same marketplace. Different address. Different key. Your Surplus balance does not show here.<br>Surplus example: <code>https://api.surplusintelligence.ai/min30/v1/chat/completions</code><br>This router: <code>https://surp.ivc.lol/v1</code></div>
+    <div class="trust-strip"><b>You sign. We never hold keys.</b> Payments are EIP-3009 authorizations in USDC on Base — Surp can settle a request but cannot move funds on its own.</div>
+
+    <div class="warn-note"><b>Base URL check.</b> Your Surp key only works on <code>https://surp.ivc.lol/v1</code> — never on <code>https://api.surplusintelligence.ai/min30/v1/chat/completions</code>. Same marketplace, different router, different key. Your Surplus balance does not show here.</div>
 
     <details class="funding-path" open>
       <summary>Connect Hermes</summary>
