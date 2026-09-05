@@ -124,6 +124,7 @@ FLOOR_CENTS = float(os.environ.get("SURP_FLOOR_CENTS", "1"))
 
 # Cache innovation: exact deterministic responses cost less than fresh inference,
 # while sticky routing raises upstream provider prefix-cache hit rates.
+_STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 CACHE_DB = os.environ.get("SURP_CACHE_DB", "/root/.hermes/surp-router/cache.db")
 REWARD_DB = os.environ.get("SURP_REWARD_DB", "/root/.hermes/surp-router/rewards.db")
 CACHE_TTL_SECONDS = int(os.environ.get("SURP_CACHE_TTL_SECONDS", "900"))
@@ -4700,7 +4701,7 @@ def build_app() -> web.Application:
     app.router.add_post("/v1/chat/completions", chat_completions)
     # Catch-all 404 for anything unmatched — must be registered last
     app.router.add_get("/robots.txt", serve_robots)
-    app.router.add_get("/og-image.png", lambda r: web.FileResponse("/root/.hermes/surp-router/static/og-image.png"))
+    app.router.add_get("/og-image.png", lambda r: web.FileResponse(os.path.join(_STATIC_DIR, "og-image.png")))
     app.router.add_get("/miniapp", page_miniapp)
     app.router.add_get("/cache", page_cache)
     app.router.add_get("/proposal", page_proposal)
@@ -4754,7 +4755,7 @@ def build_app() -> web.Application:
     app.router.add_get("/pay-per-request-llm-api", page_keyword)
     app.router.add_get("/cheapest-llm-api", page_keyword)
     app.router.add_get("/.well-known/farcaster.json", serve_farcaster_manifest)
-    app.router.add_static("/static", "/root/.hermes/surp-router/static")
+    app.router.add_static("/static", _STATIC_DIR)
     app.router.add_get("/sitemap.xml", serve_sitemap)
     app.router.add_route("*", "/{tail:.*}", page_404)
     return app
