@@ -38,9 +38,14 @@ fi
 git reset --hard origin/main >>"$LOG" 2>&1
 NEW=$(git rev-parse HEAD)
 
-if [ "$PREV" = "$NEW" ]; then
+if [ "$PREV" = "$NEW" ] && [ "${FORCE_DEPLOY:-0}" != "1" ]; then
     log "no changes, already at ${NEW:0:7}"
     exit 0
+fi
+if [ "$PREV" = "$NEW" ]; then
+    log "forced redeploy of ${NEW:0:7}"
+else
+    log "pulled: ${NEW:0:7} (was ${PREV:0:7})"
 fi
 log "pulled: ${NEW:0:7} (was ${PREV:0:7})"
 

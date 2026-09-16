@@ -84,6 +84,7 @@ async def github_webhook(request: web.Request) -> web.Response:
         # gateway restart that deploy.sh will trigger.
         subprocess.Popen(
             ["bash", DEPLOY_SCRIPT],
+            env={**os.environ, "FORCE_DEPLOY": "1"},
             stdout=open(LOG_FILE, "a"),
             stderr=subprocess.STDOUT,
             start_new_session=True,
