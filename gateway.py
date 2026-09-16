@@ -4598,7 +4598,7 @@ async def serve_agent_card(request: web.Request) -> web.Response:
             "price_compare": "/prices",
         },
     }
-    return web.json_response(card, headers={"Content-Type": "application/json; charset=utf-8"})
+    return web.json_response(card)
 
 
 async def serve_ai_plugin(request: web.Request) -> web.Response:
@@ -4619,7 +4619,7 @@ async def serve_ai_plugin(request: web.Request) -> web.Response:
         "contact_email": "hi@surp.ivc.lol",
         "legal_info_url": "https://surp.ivc.lol/about",
     }
-    return web.json_response(plugin, headers={"Content-Type": "application/json; charset=utf-8"})
+    return web.json_response(plugin)
 
 
 async def serve_api_catalog(request: web.Request) -> web.Response:
@@ -4659,7 +4659,7 @@ async def serve_api_catalog(request: web.Request) -> web.Response:
             },
         ],
     }
-    return web.json_response(catalog, headers={"Content-Type": "application/json; charset=utf-8"})
+    return web.json_response(catalog)
 
 
 async def serve_llms_txt(request: web.Request) -> web.Response:
@@ -4709,7 +4709,7 @@ async def serve_openapi(request: web.Request) -> web.Response:
             "/models": {"get": {"summary": "List models", "responses": {"200": {"description": "OK"}}}},
         },
     }
-    return web.json_response(doc, headers={"Content-Type": "application/json; charset=utf-8"})
+    return web.json_response(doc)
     import time as _time
     lastmod = _time.strftime("%Y-%m-%d", _time.gmtime())
     pages = ["/", "/docs", "/connect", "/builder", "/about", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/prices", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api"]
