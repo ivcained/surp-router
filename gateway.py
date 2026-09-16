@@ -612,6 +612,9 @@ async def page_home(request: web.Request) -> web.Response:
         market_count = text_count = 0
 
     html = _render_html(_HOME_CONTENT, "/").replace("__ROWS__", rows).replace("__MC__", str(market_count)).replace("__TC__", str(text_count))
+    if "text/markdown" in request.headers.get("Accept", ""):
+        markdown = "# Surp\n\nBase-native AI inference marketplace and x402 router.\n\n## Links\n- Docs: https://surp.ivc.lol/docs\n- Models: https://surp.ivc.lol/v1/models\n- Prices: https://surp.ivc.lol/prices\n- Status: https://surp.ivc.lol/status\n\n## Payments\nPay per request with x402 EIP-3009 USDC authorization on Base.\n"
+        return web.Response(text=markdown, content_type="text/markdown", headers=_agent_discovery_headers())
     return web.Response(text=html, content_type="text/html", headers={"Cache-Control": "no-cache", **_agent_discovery_headers()})
 
 
@@ -4659,7 +4662,15 @@ async def serve_api_catalog(request: web.Request) -> web.Response:
             },
         ],
     }
-    return web.json_response(catalog)
+    catalog = {
+        "linkset": [{
+            "anchor": "https://surp.ivc.lol/v1",
+            "service-desc": [{"href": "https://surp.ivc.lol/openapi.json", "type": "application/vnd.oai.openapi+json;version=3.1"}],
+            "service-doc": [{"href": "https://surp.ivc.lol/docs", "type": "text/html"}],
+            "status": [{"href": "https://surp.ivc.lol/api/health", "type": "application/json"}],
+        }],
+    }
+    return web.json_response(catalog, content_type="application/linkset+json")
 
 
 async def serve_llms_txt(request: web.Request) -> web.Response:
@@ -4723,10 +4734,17 @@ async def serve_openapi(request: web.Request) -> web.Response:
 
 
 async def serve_auth_md(request: web.Request) -> web.Response:
-    return web.Response(
-        text="# Surp authentication\n\n- x402: per-request EIP-3009 USDC authorization on Base.\n- API keys: prepaid Bearer keys for server-to-server use.\n- Never send private keys to Surp.\n",
-        content_type="text/markdown",
-    )
+    body = """# Auth.md
+
+Surp supports two authentication paths.
+
+- x402: per-request EIP-3009 USDC authorization on Base.
+- API keys: prepaid Bearer keys for server-to-server use.
+- Never send private keys to Surp.
+
+See /.well-known/oauth-protected-resource for protected-resource metadata.
+"""
+    return web.Response(text=body, content_type="text/markdown")
 
 
 async def serve_mcp_card(request: web.Request) -> web.Response:
@@ -4736,6 +4754,52 @@ async def serve_mcp_card(request: web.Request) -> web.Response:
         "transport": "HTTP",
         "url": "https://surp.ivc.lol/v1",
     })
+
+
+async def serve_oauth_authorization_server(request: web.Request) -> web.Response:
+    return web.json_response({
+        "issuer": "https://surp.ivc.lol",
+        "authorization_endpoint": "https://surp.ivc.lol/app",
+        "token_endpoint": "https://surp.ivc.lol/api/user/me",
+        "grant_types_supported": ["client_credentials"],
+        "scopes_supported": ["inference"],
+    })
+
+
+async def serve_oauth_protected_resource(request: web.Request) -> web.Response:
+    return web.json_response({
+        "resource": "https://surp.ivc.lol/v1",
+        "authorization_servers": ["https://surp.ivc.lol"],
+        "scopes_supported": ["inference"],
+        "bearer_methods_supported": ["header"],
+    })
+
+
+async def serve_mcp_server_card(request: web.Request) -> web.Response:
+    return web.json_response({
+        "serverInfo": {"name": "surp", "version": "1.0.0"},
+        "description": "Surp AI inference router",
+        "capabilities": {"tools": {}},
+        "transport": {"type": "streamable-http", "url": "https://surp.ivc.lol/v1"},
+    })
+
+
+async def serve_agent_skills_index(request: web.Request) -> web.Response:
+    return web.json_response({
+        "$schema": "https://agentskills.io/schemas/agent-skills.json",
+        "skills": [{"name": "surp-api", "type": "api", "description": "Use Surp's OpenAI-compatible x402 API.", "url": "https://surp.ivc.lol/docs", "sha256": ""}],
+    })
+
+
+async def serve_ai_catalog(request: web.Request) -> web.Response:
+    return web.json_response({
+        "specVersion": "0.1.0",
+        "host": {"name": "surp.ivc.lol", "url": "https://surp.ivc.lol"},
+        "entries": [
+            {"id": "urn:air:surp.ivc.lol:api:openapi", "displayName": "Surp OpenAPI", "type": "application/vnd.oai.openapi+json;version=3.1", "url": "https://surp.ivc.lol/openapi.json", "representativeQueries": ["How do I call Surp?", "List available models"]},
+            {"id": "urn:air:surp.ivc.lol:payment:x402", "displayName": "Surp x402 payments", "type": "application/json", "url": "https://surp.ivc.lol/.well-known/agent-card.json", "representativeQueries": ["How do I pay for inference?", "Does Surp support USDC on Base?"]},
+        ],
+    }, headers={"Access-Control-Allow-Origin": "*"})
 
 
 async def page_404(request: web.Request) -> web.Response:
@@ -4950,6 +5014,12 @@ def build_app() -> web.Application:
     app.router.add_get("/cheapest-llm-api", page_keyword)
     app.router.add_get("/.well-known/farcaster.json", serve_farcaster_manifest)
     app.router.add_get("/.well-known/agent-card.json", serve_agent_card)
+    app.router.add_get("/.well-known/oauth-authorization-server", serve_oauth_authorization_server)
+    app.router.add_get("/.well-known/oauth-protected-resource", serve_oauth_protected_resource)
+    app.router.add_get("/.well-known/mcp/server-card.json", serve_mcp_server_card)
+    app.router.add_get("/.well-known/agent-skills/index.json", serve_agent_skills_index)
+    app.router.add_get("/.well-known/ai-catalog.json", serve_ai_catalog)
+    app.router.add_get("/.well-known/dns-aid.json", serve_ai_catalog)
     app.router.add_get("/.well-known/api-catalog", serve_api_catalog)
     app.router.add_get("/.well-known/ai-plugin.json", serve_ai_plugin)
     app.router.add_get("/llms.txt", serve_llms_txt)
