@@ -4558,6 +4558,9 @@ async def serve_robots(request: web.Request) -> web.Response:
         "Disallow: /app/\n"
         "Disallow: /studio/\n"
         "\n"
+        "Content-Signal: ai-train=no, search=yes, ai-input=no\n"
+        "Agentmap: https://surp.ivc.lol/.well-known/ai-catalog.json\n"
+        "\n"
         "Sitemap: https://surp.ivc.lol/sitemap.xml\n"
     )
     return web.Response(text=body, content_type="text/plain")
@@ -4721,6 +4724,9 @@ async def serve_openapi(request: web.Request) -> web.Response:
         },
     }
     return web.json_response(doc)
+
+
+async def serve_sitemap(request: web.Request) -> web.Response:
     import time as _time
     lastmod = _time.strftime("%Y-%m-%d", _time.gmtime())
     pages = ["/", "/docs", "/connect", "/builder", "/about", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/prices", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api"]
