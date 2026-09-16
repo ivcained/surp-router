@@ -612,12 +612,12 @@ async def page_home(request: web.Request) -> web.Response:
         market_count = text_count = 0
 
     html = _render_html(_HOME_CONTENT, "/").replace("__ROWS__", rows).replace("__MC__", str(market_count)).replace("__TC__", str(text_count))
-    return web.Response(text=html, content_type="text/html", headers={"Cache-Control": "no-cache"})
+    return web.Response(text=html, content_type="text/html", headers={"Cache-Control": "no-cache", **_agent_discovery_headers()})
 
 
 async def page_docs(request: web.Request) -> web.Response:
     html = _render_html(_DOCS_CONTENT, "/docs")
-    return web.Response(text=html, content_type="text/html")
+    return web.Response(text=html, content_type="text/html", headers=_agent_discovery_headers())
 
 
 async def page_about(request: web.Request) -> web.Response:
@@ -4536,10 +4536,28 @@ async def serve_robots(request: web.Request) -> web.Response:
         "User-agent: *\n"
         "Allow: /\n"
         "Disallow: /api/\n"
-        "Disallow: /v1/\n\n"
+        "Disallow: /v1/\n"
+        "Disallow: /app/\n"
+        "Disallow: /studio/\n"
+        "\n"
+        "# AI / agent crawlers — we want agents to read docs and agent metadata\n"
+        "User-agent: ClaudeBot\n"
+        "User-agent: Claude-Web\n"
+        "User-agent: CCBot\n"
+        "User-agent: GPTBot\n"
+        "User-agent: ChatGPT-User\n"
+        "User-agent: OAI-SearchBot\n"
+        "User-agent: PerplexityBot\n"
+        "User-agent: anthropic-ai\n"
+        "Allow: /\n"
+        "Disallow: /api/\n"
+        "Disallow: /v1/\n"
+        "Disallow: /app/\n"
+        "Disallow: /studio/\n"
+        "\n"
         "Sitemap: https://surp.ivc.lol/sitemap.xml\n"
     )
-    return web.Response(text=body, content_type="text/plain")
+    return web.Response(text=body, content_type="text/plain; charset=utf-8")
 
 
 async def serve_sitemap(request: web.Request) -> web.Response:
@@ -4553,6 +4571,171 @@ async def serve_sitemap(request: web.Request) -> web.Response:
         urls += "  <url><loc>https://surp.ivc.lol%s</loc><lastmod>%s</lastmod><changefreq>%s</changefreq><priority>%s</priority></url>\n" % (p, lastmod, changefreq, priority)
     body = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n%s</urlset>' % urls
     return web.Response(text=body, content_type="application/xml")
+
+
+async def serve_agent_card(request: web.Request) -> web.Response:
+    """Agent-cards manifest: let agents discover Surp's API + x402 payments."""
+    card = {
+        "name": "Surp",
+        "description": (
+            "Surp is a Base-native AI inference marketplace and router. One "
+            "OpenAI-compatible API with live model pricing, low-cost routing, "
+            "response caching, and x402 USDC settlement on Base."
+        ),
+        "version": "1.0",
+        "about": "https://surp.ivc.lol/about",
+        "docs": "https://surp.ivc.lol/docs",
+        "openapi": "https://surp.ivc.lol/openapi.json",
+        "api_base_url": "https://surp.ivc.lol/v1",
+        "payment": {
+            "scheme": "x402",
+            "network": os.environ.get("SURP_NETWORK", "eip155:8453"),
+            "description": "EIP-3009 USDC authorization on Base, settled per request. No standing approval, no stored keys.",
+        },
+        "capabilities": {
+            "chat": "/v1/chat/completions",
+            "models": "/v1/models",
+            "price_compare": "/prices",
+        },
+    }
+    return web.json_response(card, headers={"Content-Type": "application/json; charset=utf-8"})
+
+
+async def serve_ai_plugin(request: web.Request) -> web.Response:
+    """OpenAPI-style AI plugin manifest pointing agents at /openapi.json."""
+    plugin = {
+        "schema_version": "v1",
+        "name_for_human": "Surp",
+        "name_for_model": "surp",
+        "description_for_human": "Surp AI inference marketplace and router.",
+        "description_for_model": (
+            "Access the Surp AI router: live model pricing, low-cost routing, "
+            "response caching, and x402 USDC payments on Base. Use /v1/chat/completions "
+            "and /v1/models with an API key, or x402 EIP-3009 payment signatures."
+        ),
+        "auth": {"type": "none"},
+        "api": {"type": "openapi", "url": "https://surp.ivc.lol/openapi.json"},
+        "logo_url": "https://surp.ivc.lol/og-image.png",
+        "contact_email": "hi@surp.ivc.lol",
+        "legal_info_url": "https://surp.ivc.lol/about",
+    }
+    return web.json_response(plugin, headers={"Content-Type": "application/json; charset=utf-8"})
+
+
+async def serve_api_catalog(request: web.Request) -> web.Response:
+    """API catalog at /.well-known/api-catalog advertising endpoints."""
+    catalog = {
+        "name": "Surp API",
+        "description": "Surp — Base-native AI inference marketplace and x402 router.",
+        "base_url": "https://surp.ivc.lol/v1",
+        "endpoints": [
+            {
+                "name": "chat-completions",
+                "description": "OpenAI-compatible chat completions with x402 USDC payment on Base.",
+                "path": "/v1/chat/completions",
+                "method": "POST",
+                "auth": "x402 or Bearer API key",
+            },
+            {
+                "name": "list-models",
+                "description": "List available models and combos.",
+                "path": "/v1/models",
+                "method": "GET",
+                "auth": "none",
+            },
+            {
+                "name": "status",
+                "description": "Live gateway and system status.",
+                "path": "/status",
+                "method": "GET",
+                "auth": "none",
+            },
+            {
+                "name": "price-compare",
+                "description": "OpenRouter vs Surp price comparison.",
+                "path": "/prices",
+                "method": "GET",
+                "auth": "none",
+            },
+        ],
+    }
+    return web.json_response(catalog, headers={"Content-Type": "application/json; charset=utf-8"})
+
+
+async def serve_llms_txt(request: web.Request) -> web.Response:
+    """llms.txt — plain-text index for LLM + agent ingestion."""
+    lines = [
+        "# Surp",
+        "",
+        "> Surp is a Base-native AI inference marketplace and x402 router.",
+        "",
+        "## Key facts",
+        "- One OpenAI-compatible API: https://surp.ivc.lol/v1",
+        "- Live least-expensive-model routing across the Surplus Intelligence marketplace",
+        "- Exact-response caching for $0.001 cache hits",
+        "- Payments: x402, per-request EIP-3009 USDC authorization on Base (eip155:8453)",
+        "- No account needed for /v1/models; paid calls need an x402 signature or prepaid API key",
+        "",
+        "## Docs",
+        "- API: https://surp.ivc.lol/docs",
+        "- Status: https://surp.ivc.lol/status",
+        "- Prices: https://surp.ivc.lol/prices",
+        "- About: https://surp.ivc.lol/about",
+        "- OpenAPI: https://surp.ivc.lol/openapi.json",
+        "",
+    ]
+    return web.Response(text="\n".join(lines), content_type="text/plain; charset=utf-8")
+
+
+async def serve_openapi(request: web.Request) -> web.Response:
+    """Minimal OpenAPI 3.1 document for the public v1 API."""
+    doc = {
+        "openapi": "3.1.0",
+        "info": {
+            "title": "Surp API",
+            "version": "1.0.0",
+            "description": "Base-native AI inference marketplace and x402 router.",
+        },
+        "servers": [{"url": "https://surp.ivc.lol/v1"}],
+        "paths": {
+            "/chat/completions": {
+                "post": {
+                    "summary": "Chat completions",
+                    "description": "OpenAI-compatible chat completions. Requires x402 EIP-3009 USDC payment on Base or a prepaid API key.",
+                    "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}},
+                    "responses": {"200": {"description": "OK"}, "402": {"description": "Payment required (x402)"}},
+                }
+            },
+            "/models": {"get": {"summary": "List models", "responses": {"200": {"description": "OK"}}}},
+        },
+    }
+    return web.json_response(doc, headers={"Content-Type": "application/json; charset=utf-8"})
+    import time as _time
+    lastmod = _time.strftime("%Y-%m-%d", _time.gmtime())
+    pages = ["/", "/docs", "/connect", "/builder", "/about", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/prices", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api"]
+    urls = ""
+    for p in pages:
+        priority = "1.0" if p == "/" else "0.8" if p in ("/docs", "/connect") else "0.6"
+        changefreq = "daily" if p == "/" else "weekly"
+        urls += "  <url><loc>https://surp.ivc.lol%s</loc><lastmod>%s</lastmod><changefreq>%s</changefreq><priority>%s</priority></url>\n" % (p, lastmod, changefreq, priority)
+    body = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n%s</urlset>' % urls
+    return web.Response(text=body, content_type="application/xml")
+
+
+async def serve_auth_md(request: web.Request) -> web.Response:
+    return web.Response(
+        text="# Surp authentication\n\n- x402: per-request EIP-3009 USDC authorization on Base.\n- API keys: prepaid Bearer keys for server-to-server use.\n- Never send private keys to Surp.\n",
+        content_type="text/markdown; charset=utf-8",
+    )
+
+
+async def serve_mcp_card(request: web.Request) -> web.Response:
+    return web.json_response({
+        "name": "Surp",
+        "description": "Surp AI inference router",
+        "transport": "HTTP",
+        "url": "https://surp.ivc.lol/v1",
+    })
 
 
 async def page_404(request: web.Request) -> web.Response:
@@ -4661,6 +4844,17 @@ async def api_metrics_stream(request: web.Request) -> web.StreamResponse:
     return resp
 
 
+def _agent_discovery_headers() -> dict[str, str]:
+    return {
+        "Link": (
+            '<https://surp.ivc.lol/.well-known/agent-card.json>; rel="agent-card", '
+            '<https://surp.ivc.lol/.well-known/api-catalog>; rel="api-catalog", '
+            '<https://surp.ivc.lol/openapi.json>; rel="service-doc", '
+            '<https://surp.ivc.lol/llms.txt>; rel="describedby"'
+        ),
+    }
+
+
 def build_app() -> web.Application:
     app = web.Application()
     app.on_startup.append(_metrics_writer_loop)
@@ -4755,6 +4949,13 @@ def build_app() -> web.Application:
     app.router.add_get("/pay-per-request-llm-api", page_keyword)
     app.router.add_get("/cheapest-llm-api", page_keyword)
     app.router.add_get("/.well-known/farcaster.json", serve_farcaster_manifest)
+    app.router.add_get("/.well-known/agent-card.json", serve_agent_card)
+    app.router.add_get("/.well-known/api-catalog", serve_api_catalog)
+    app.router.add_get("/.well-known/ai-plugin.json", serve_ai_plugin)
+    app.router.add_get("/llms.txt", serve_llms_txt)
+    app.router.add_get("/openapi.json", serve_openapi)
+    app.router.add_get("/auth.md", serve_auth_md)
+    app.router.add_get("/mcp.json", serve_mcp_card)
     app.router.add_static("/static", _STATIC_DIR)
     app.router.add_get("/sitemap.xml", serve_sitemap)
     app.router.add_route("*", "/{tail:.*}", page_404)
