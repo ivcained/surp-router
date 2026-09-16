@@ -4557,7 +4557,7 @@ async def serve_robots(request: web.Request) -> web.Response:
         "\n"
         "Sitemap: https://surp.ivc.lol/sitemap.xml\n"
     )
-    return web.Response(text=body, content_type="text/plain; charset=utf-8")
+    return web.Response(text=body, content_type="text/plain")
 
 
 async def serve_sitemap(request: web.Request) -> web.Response:
@@ -4684,7 +4684,7 @@ async def serve_llms_txt(request: web.Request) -> web.Response:
         "- OpenAPI: https://surp.ivc.lol/openapi.json",
         "",
     ]
-    return web.Response(text="\n".join(lines), content_type="text/plain; charset=utf-8")
+    return web.Response(text="\n".join(lines), content_type="text/plain")
 
 
 async def serve_openapi(request: web.Request) -> web.Response:
@@ -4725,7 +4725,7 @@ async def serve_openapi(request: web.Request) -> web.Response:
 async def serve_auth_md(request: web.Request) -> web.Response:
     return web.Response(
         text="# Surp authentication\n\n- x402: per-request EIP-3009 USDC authorization on Base.\n- API keys: prepaid Bearer keys for server-to-server use.\n- Never send private keys to Surp.\n",
-        content_type="text/markdown; charset=utf-8",
+        content_type="text/markdown",
     )
 
 
