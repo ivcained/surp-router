@@ -589,7 +589,18 @@ def _render_html(content: str, path: str = "/") -> str:
     # Breadcrumb label for the universal top bar.
     breadcrumb = meta["title"].split(" — ")[0].lower().strip()
     html = html.replace("__BREADCRUMB__", breadcrumb)
-    return html
+    return html.replace("</head>", """<script>
+(() => {
+  const tools = [
+    {name:'surp_list_models', description:'List models available through Surp.', inputSchema:{type:'object',properties:{}}, execute:async()=> (await fetch('/v1/models')).json()},
+    {name:'surp_get_status', description:'Read current Surp service status.', inputSchema:{type:'object',properties:{}}, execute:async()=> (await fetch('/api/health')).json()}
+  ];
+  if (navigator.modelContext) {
+    const register = navigator.modelContext.registerTool || navigator.modelContext.provideContext;
+    if (register) tools.forEach(tool => register.call(navigator.modelContext, tool));
+  }
+})();
+</script></head>""")
 
 
 async def page_pitch(request: web.Request) -> web.Response:
@@ -4799,7 +4810,7 @@ async def serve_oauth_authorization_server(request: web.Request) -> web.Response
 
 async def serve_oauth_protected_resource(request: web.Request) -> web.Response:
     return web.json_response({
-        "resource": "https://surp.ivc.lol/v1",
+        "resource": "https://surp.ivc.lol",
         "authorization_servers": ["https://surp.ivc.lol"],
         "scopes_supported": ["inference"],
         "bearer_methods_supported": ["header"],
