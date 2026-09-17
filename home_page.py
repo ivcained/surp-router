@@ -184,9 +184,16 @@ CONTENT = r'''
     </div>
 
     <div class="agent-box" id="agent-box">
+      <h3>Create a free key</h3>
+      <p>Start with a free Surp key, then copy the ready-to-use prompt into your agent.</p>
+      <button type="button" id="btn-make-key">Create a free key</button>
+      <p id="key-status" class="key-status-msg" aria-live="polite"></p>
+    </div>
+
+    <div class="agent-box" id="agent-prompt-box">
       <h3>Copy this into your agent</h3>
-      <p>Create a Surp key, then paste the prompt. This is not a SurplusIntelligence.ai key. The base URL is different.</p>
-      <pre id="agent-prompt" tabindex="0">Use Surp as my OpenAI-compatible provider.
+      <p>Use the key above with Surp's [OI]-compatible API. This is not a SurplusIntelligence.ai key.</p>
+      <pre id="agent-prompt" tabindex="0">Use Surp as my [OI]-compatible provider.
 
 Base URL: https://surp.ivc.lol/v1
 API key: YOUR_SURP_KEY
@@ -196,10 +203,8 @@ Do not use https://api.surplusintelligence.ai/min30/v1/chat/completions
 Do not expect a SurplusIntelligence balance here. This key only works on this base URL.</pre>
       <div class="row">
         <button type="button" id="btn-copy-prompt">Copy prompt</button>
-        <button type="button" id="btn-make-key">Create a free key</button>
         <a class="btn" href="/app">Open account →</a>
       </div>
-      <p id="key-status" class="key-status-msg" aria-live="polite"></p>
     </div>
   </section>
 
