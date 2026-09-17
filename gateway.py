@@ -4598,11 +4598,12 @@ async def serve_agent_card(request: web.Request) -> web.Response:
             "network": os.environ.get("SURP_NETWORK", "eip155:8453"),
             "description": "EIP-3009 USDC authorization on Base, settled per request. No standing approval, no stored keys.",
         },
-        "capabilities": {
-            "chat": "/v1/chat/completions",
-            "models": "/v1/models",
-            "price_compare": "/prices",
-        },
+        "skills": [
+            {"id": "surp-inference", "name": "AI inference", "description": "Submit chat completion requests through the Surp API."}
+        ],
+        "supportedInterfaces": [
+            {"url": "https://surp.ivc.lol/v1", "protocolBinding": "HTTP+JSON", "protocolVersion": "1.0"}
+        ],
     }
     return web.json_response(card)
 
@@ -4742,13 +4743,29 @@ async def serve_sitemap(request: web.Request) -> web.Response:
 async def serve_auth_md(request: web.Request) -> web.Response:
     body = """# Auth.md
 
-Surp supports two authentication paths.
+## Agent registration
 
-- x402: per-request EIP-3009 USDC authorization on Base.
-- API keys: prepaid Bearer keys for server-to-server use.
-- Never send private keys to Surp.
+Surp supports anonymous agent access through either per-request x402 payment signatures or prepaid Bearer API keys.
 
-See /.well-known/oauth-protected-resource for protected-resource metadata.
+### Registration
+
+Agents can register or obtain a prepaid API key at https://surp.ivc.lol/app. API key credentials are sent as `Authorization: Bearer <key>` and must not be exposed in public metadata.
+
+### Supported credentials
+
+- `x402_payment_signature`: per-request EIP-3009 USDC authorization on Base.
+- `bearer_api_key`: prepaid API key for server-to-server inference.
+
+### Protected resource metadata
+
+See https://surp.ivc.lol/.well-known/oauth-protected-resource.
+
+### Claims and revocation
+
+Account claims: https://surp.ivc.lol/api/user/me
+API-key revocation: https://surp.ivc.lol/api/user/api-keys
+
+Surp never receives or stores private wallet keys.
 """
     return web.Response(text=body, content_type="text/markdown")
 
@@ -4769,6 +4786,14 @@ async def serve_oauth_authorization_server(request: web.Request) -> web.Response
         "token_endpoint": "https://surp.ivc.lol/api/user/me",
         "grant_types_supported": ["client_credentials"],
         "scopes_supported": ["inference"],
+        "agent_auth": {
+            "skill": "https://surp.ivc.lol/auth.md",
+            "register_uri": "https://surp.ivc.lol/app",
+            "identity_types_supported": ["anonymous"],
+            "anonymous": {"credential_types_supported": ["bearer_api_key", "x402_payment_signature"]},
+            "claim_uri": "https://surp.ivc.lol/api/user/me",
+            "revocation_uri": "https://surp.ivc.lol/api/user/api-keys"
+        },
     })
 
 
@@ -4799,11 +4824,11 @@ async def serve_agent_skills_index(request: web.Request) -> web.Response:
 
 async def serve_ai_catalog(request: web.Request) -> web.Response:
     return web.json_response({
-        "specVersion": "0.1.0",
-        "host": {"name": "surp.ivc.lol", "url": "https://surp.ivc.lol"},
+        "specVersion": "1.0",
+        "host": {"displayName": "Surp", "identifier": "did:web:surp.ivc.lol"},
         "entries": [
-            {"id": "urn:air:surp.ivc.lol:api:openapi", "displayName": "Surp OpenAPI", "type": "application/vnd.oai.openapi+json;version=3.1", "url": "https://surp.ivc.lol/openapi.json", "representativeQueries": ["How do I call Surp?", "List available models"]},
-            {"id": "urn:air:surp.ivc.lol:payment:x402", "displayName": "Surp x402 payments", "type": "application/json", "url": "https://surp.ivc.lol/.well-known/agent-card.json", "representativeQueries": ["How do I pay for inference?", "Does Surp support USDC on Base?"]},
+            {"identifier": "urn:air:surp.ivc.lol:api:openapi", "displayName": "Surp OpenAPI", "type": "application/vnd.oai.openapi+json;version=3.1", "url": "https://surp.ivc.lol/openapi.json", "representativeQueries": ["How do I call Surp?", "List available models"]},
+            {"identifier": "urn:air:surp.ivc.lol:payment:x402", "displayName": "Surp x402 payments", "type": "application/json", "url": "https://surp.ivc.lol/.well-known/agent-card.json", "representativeQueries": ["How do I pay for inference?", "Does Surp support USDC on Base?"]},
         ],
     }, headers={"Access-Control-Allow-Origin": "*"})
 

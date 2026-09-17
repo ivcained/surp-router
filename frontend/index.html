@@ -380,6 +380,25 @@
 </head>
 <body>
   <div id="root"></div>
+  <script>
+    (() => {
+      const tools = [{
+        name: 'surp_list_models',
+        description: 'List models available through Surp.',
+        inputSchema: { type: 'object', properties: {} },
+        execute: async () => (await fetch('/v1/models')).json()
+      }, {
+        name: 'surp_get_status',
+        description: 'Read current Surp service status.',
+        inputSchema: { type: 'object', properties: {} },
+        execute: async () => (await fetch('/api/health')).json()
+      }];
+      if (navigator.modelContext) {
+        const register = navigator.modelContext.registerTool || navigator.modelContext.provideContext;
+        if (register) tools.forEach(tool => register.call(navigator.modelContext, tool));
+      }
+    })();
+  </script>
   <script type="module" src="/src/main.tsx"></script>
 </body>
 </html>
