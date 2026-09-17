@@ -14,6 +14,7 @@ Run (in the surp-router venv):
 from __future__ import annotations
 
 import argparse
+import base64
 import asyncio
 import hashlib
 import json
@@ -4844,6 +4845,24 @@ async def serve_ai_catalog(request: web.Request) -> web.Response:
     }, headers={"Access-Control-Allow-Origin": "*"})
 
 
+async def api_x402_discovery(request: web.Request) -> web.Response:
+    """Public x402 capability probe; no payment is settled on discovery."""
+    payload = {
+        "x402Version": 2,
+        "error": "payment-required",
+        "resource": "GET /v1/chat/completions",
+        "accepts": [{
+            "scheme": "exact",
+            "network": os.environ.get("SURP_NETWORK", "eip155:8453"),
+            "asset": "USDC",
+            "payTo": PAY_TO,
+            "facilitator": FACILITATOR_URL,
+        }],
+    }
+    encoded = base64.b64encode(json.dumps(payload, separators=(",", ":")).encode()).decode()
+    return web.json_response(payload, status=402, headers={"PAYMENT-REQUIRED": encoded})
+
+
 async def page_404(request: web.Request) -> web.Response:
     html = _render_html(_404_CONTENT, "/")
     return web.Response(text=html, content_type="text/html", status=404)
@@ -4967,6 +4986,8 @@ def build_app() -> web.Application:
     app.on_cleanup.append(_metrics_writer_stop)
     app.router.add_get("/", page_home)
     app.router.add_get("/pitch", page_pitch)
+    app.router.add_get("/api/v1", api_x402_discovery)
+    app.router.add_get("/api", api_x402_discovery)
     app.router.add_get("/api/metrics/stream", api_metrics_stream)
     app.router.add_get("/docs", page_docs)
     app.router.add_get("/about", page_about)
