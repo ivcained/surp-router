@@ -64,7 +64,7 @@ CONTENT = r'''
 .demo-result .retry-btn { margin-top:10px; padding:6px 12px; border:1px solid #ff8080; border-radius:4px; background:transparent; color:#ff8080; font:inherit; font-size:12px; cursor:pointer; align-self:flex-start; }
 .demo-result .retry-btn:hover { background:rgba(255,128,128,.1); }
 .demo-result .retry-btn:focus-visible { outline:none; box-shadow:var(--focus-ring); }
-.agent-box { margin-top:20px; padding:18px; border:1px dashed var(--border-bright); background:#030503; border-radius:4px; }
+.agent-box { box-sizing: border-box; width: 100%; min-width: 0; overflow: hidden; margin-top:20px; padding:18px; border:1px dashed var(--border-bright); background:#030503; border-radius:4px; }
 .agent-box h3 { margin:0 0 6px; font-size:14px; color:var(--accent); font-weight:700; }
 .agent-box p { color:var(--fg-dim); font-size:13px; line-height:1.55; margin:0 0 10px; }
 .agent-box pre { white-space:pre-wrap; word-break:break-word; background:#000; border:1px solid var(--border); border-radius:4px; padding:12px 14px; color:var(--fg); font-size:12px; line-height:1.6; }
@@ -116,6 +116,10 @@ CONTENT = r'''
   .home-proof { gap:18px; }
   .demo-custom label { flex-direction:column; align-items:flex-start; gap:6px; }
   .demo-custom input[type=range] { max-width:100%; width:100%; }
+  .agent-box { width:100%; min-width:0; padding:14px; overflow:hidden; }
+  .agent-box pre { box-sizing:border-box; width:100%; max-width:100%; overflow-x:hidden; overflow-wrap:anywhere; word-break:break-word; }
+  .agent-box .row { width:100%; }
+  .agent-box button, .agent-box a.btn { max-width:100%; white-space:normal; }
 }
 </style>
 
