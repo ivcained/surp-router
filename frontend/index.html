@@ -352,6 +352,20 @@
       .dash-topbar {
         flex-wrap: wrap; padding: 9px 12px; row-gap: 8px;
       }
+      main {
+        margin-left: 0 !important;
+        width: 100% !important;
+        padding: 16px !important;
+      }
+      .dash-actions {
+        flex-basis: 100%;
+        justify-content: space-between;
+      }
+      .dash-wallet {
+        flex: 1;
+        justify-content: center;
+      }
+      .dash-logout { flex-shrink: 0; }
       @media (prefers-reduced-motion: reduce) {
         *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
       }

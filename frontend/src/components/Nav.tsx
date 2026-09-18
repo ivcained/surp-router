@@ -158,7 +158,7 @@ export function Nav({
           overflowY: 'auto', zIndex: 60,
           display: 'flex', flexDirection: 'column',
           transition: 'transform 0.25s ease',
-          transform: drawerOpen ? 'translateX(0)' : 'translateX(-100%)',
+          transform: drawerOpen ? 'translateX(0)' : undefined,
         }}
       >
         {/* Brand */}
