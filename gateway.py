@@ -559,6 +559,9 @@ JSONLD_ORG = {
         "@type": "Organization",
         "name": "surp.ivc.lol",
         "url": "https://surp.ivc.lol",
+        "email": "hi@surp.ivc.lol",
+        "contactPoint": {"@type": "ContactPoint", "email": "hi@surp.ivc.lol", "contactType": "customer and developer support", "availableLanguage": ["English"]},
+        "address": {"@type": "PostalAddress", "addressCountry": "US", "addressRegion": "Online service"},
     },
 }
 
@@ -626,8 +629,8 @@ async def page_home(request: web.Request) -> web.Response:
     html = _render_html(_HOME_CONTENT, "/").replace("__ROWS__", rows).replace("__MC__", str(market_count)).replace("__TC__", str(text_count))
     if "text/markdown" in request.headers.get("Accept", ""):
         markdown = "# Surp\n\nBase-native AI inference marketplace and x402 router.\n\n## Links\n- Docs: https://surp.ivc.lol/docs\n- Models: https://surp.ivc.lol/v1/models\n- Prices: https://surp.ivc.lol/prices\n- Status: https://surp.ivc.lol/status\n\n## Payments\nPay per request with x402 EIP-3009 USDC authorization on Base.\n"
-        return web.Response(text=markdown, content_type="text/markdown", headers=_agent_discovery_headers())
-    return web.Response(text=html, content_type="text/html", headers={"Cache-Control": "no-cache", **_agent_discovery_headers()})
+        return web.Response(text=markdown, content_type="text/markdown", headers={"Vary": "Accept", **_agent_discovery_headers()})
+    return web.Response(text=html, content_type="text/html", headers={"Cache-Control": "no-cache", "Vary": "Accept", **_agent_discovery_headers()})
 
 
 async def page_docs(request: web.Request) -> web.Response:
@@ -638,6 +641,16 @@ async def page_docs(request: web.Request) -> web.Response:
 async def page_about(request: web.Request) -> web.Response:
     html = _render_html(_ABOUT_CONTENT, "/about")
     return web.Response(text=html, content_type="text/html")
+
+
+async def page_contact(request: web.Request) -> web.Response:
+    content = """<h1>Contact Surp</h1><p>Surp provides a Base-native AI inference router for developers and autonomous agents. For product questions, integration support, security reports, billing questions, or partnership requests, email <a href='mailto:hi@surp.ivc.lol'>hi@surp.ivc.lol</a>. Include the affected endpoint, request timestamp, request ID when available, and whether the call used x402 or a prepaid API key. Never email API keys, wallet private keys, payment signatures, or other credentials. Technical documentation is available at <a href='/docs'>/docs</a>, machine-readable API definitions at <a href='/openapi.json'>/openapi.json</a>, and current service state at <a href='/status'>/status</a>. Security issues should include reproducible steps and impact while avoiding access to data that is not yours. We respond through the email address supplied by the reporter.</p>"""
+    return web.Response(text=_render_html(content, "/contact"), content_type="text/html")
+
+
+async def page_privacy(request: web.Request) -> web.Response:
+    content = """<h1>Surp Privacy</h1><p>Surp processes API requests to route AI inference, calculate prices, enforce budgets, settle optional x402 payments, and operate the service. Request metadata may include timestamps, route names, model choices, token counts, cost, response status, payer or account identifiers, and operational logs. Do not submit secrets or personal information in prompts unless the chosen model provider and your own policies permit it. Prepaid API keys are stored as protected credentials and must be kept secret by their holder. Wallet private keys are never requested or stored by Surp. Payment signatures are used only for the payment flow they authorize. Operational records are retained only as needed for accounting, abuse prevention, debugging, security, and legal obligations. Requests can pass through upstream model providers selected by the router, whose policies may also apply. Questions or deletion requests can be sent to <a href='mailto:hi@surp.ivc.lol'>hi@surp.ivc.lol</a>. This page will be updated when material processing practices change.</p>"""
+    return web.Response(text=_render_html(content, "/privacy"), content_type="text/html")
 
 
 async def page_playground(request: web.Request) -> web.Response:
@@ -4581,7 +4594,7 @@ async def serve_robots(request: web.Request) -> web.Response:
 async def serve_sitemap(request: web.Request) -> web.Response:
     import time as _time
     lastmod = _time.strftime("%Y-%m-%d", _time.gmtime())
-    pages = ["/", "/docs", "/connect", "/builder", "/about", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/prices", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api"]
+    pages = ["/", "/docs", "/connect", "/builder", "/about", "/contact", "/privacy", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/prices", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api"]
     urls = ""
     for p in pages:
         priority = "1.0" if p == "/" else "0.8" if p in ("/docs", "/connect") else "0.6"
@@ -4703,8 +4716,14 @@ async def serve_llms_txt(request: web.Request) -> web.Response:
         "- Payments: x402, per-request EIP-3009 USDC authorization on Base (eip155:8453)",
         "- No account needed for /v1/models; paid calls need an x402 signature or prepaid API key",
         "",
+        "## When to use Surp",
+        "- Use Surp when an agent needs OpenAI-compatible text inference with live model routing and transparent pricing.",
+        "- Use `surp/free` for zero-cost testing within the daily cap, `surp/value` for cost-aware production calls, and `surp/frontier` when quality matters most.",
+        "- Call POST https://surp.ivc.lol/v1/chat/completions with a prepaid Bearer key or fulfill the returned x402 payment challenge.",
+        "- Call GET https://surp.ivc.lol/v1/models before selecting a route or model.",
+        "",
         "## Docs",
-        "- API: https://surp.ivc.lol/docs",
+        "- API: https://surp.ivc.lol/docs"
         "- Status: https://surp.ivc.lol/status",
         "- Prices: https://surp.ivc.lol/prices",
         "- About: https://surp.ivc.lol/about",
@@ -4724,17 +4743,18 @@ async def serve_openapi(request: web.Request) -> web.Response:
             "description": "Base-native AI inference marketplace and x402 router.",
         },
         "servers": [{"url": "https://surp.ivc.lol/v1"}],
+        "components": {"schemas": {
+            "Problem": {"type": "object", "required": ["code", "message", "status"], "properties": {"type": {"type": "string", "format": "uri"}, "title": {"type": "string"}, "status": {"type": "integer"}, "code": {"type": "string"}, "message": {"type": "string"}, "resolution": {"type": "string"}}},
+            "Model": {"type": "object", "required": ["id"], "properties": {"id": {"type": "string"}, "object": {"type": "string"}}},
+            "ModelsResponse": {"type": "object", "required": ["data"], "properties": {"object": {"type": "string"}, "data": {"type": "array", "items": {"$ref": "#/components/schemas/Model"}}}},
+            "ChatResponse": {"type": "object", "required": ["id", "choices"], "properties": {"id": {"type": "string"}, "object": {"type": "string"}, "choices": {"type": "array", "items": {"type": "object"}}}},
+        }},
         "paths": {
-            "/chat/completions": {
-                "post": {
-                    "summary": "Chat completions",
-                    "description": "OpenAI-compatible chat completions. Requires x402 EIP-3009 USDC payment on Base or a prepaid API key.",
-                    "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}},
-                    "responses": {"200": {"description": "OK"}, "402": {"description": "Payment required (x402)"}},
-                }
-            },
-            "/models": {"get": {"summary": "List models", "responses": {"200": {"description": "OK"}}}},
+            "/chat/completions": {"post": {"operationId": "createChatCompletion", "summary": "Chat completions", "description": "OpenAI-compatible chat completions. Requires x402 EIP-3009 USDC payment on Base or a prepaid API key.", "requestBody": {"required": True, "content": {"application/json": {"schema": {"type": "object", "required": ["model", "messages"], "properties": {"model": {"type": "string"}, "messages": {"type": "array", "items": {"type": "object"}}, "max_tokens": {"type": "integer"}}}}}}, "responses": {"200": {"description": "Chat completion", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ChatResponse"}}}}, "402": {"description": "Payment required", "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}}, "404": {"description": "Route not found", "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}}, "429": {"description": "Rate limited", "headers": {"Retry-After": {"schema": {"type": "integer"}}}, "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}}, "500": {"description": "Server error", "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}}}}},
+            "/models": {"get": {"operationId": "listModels", "summary": "List models", "description": "List available Surp routes and models.", "responses": {"200": {"description": "Available models", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ModelsResponse"}}}}, "500": {"description": "Server error", "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}}}}},
         },
+        "x-rate-limit-policy": {"headers": {"RateLimit-Limit": "60", "RateLimit-Remaining": "59", "RateLimit-Reset": "60"}, "documentation": "Clients should honor RateLimit-* headers and Retry-After on 429 responses."},
+        "x-deprecation-policy": "Stable API versions use /v1. Breaking changes receive a Deprecation or Sunset response header and are documented at https://surp.ivc.lol/docs.",
     }
     return web.json_response(doc)
 
@@ -4742,7 +4762,7 @@ async def serve_openapi(request: web.Request) -> web.Response:
 async def serve_sitemap(request: web.Request) -> web.Response:
     import time as _time
     lastmod = _time.strftime("%Y-%m-%d", _time.gmtime())
-    pages = ["/", "/docs", "/connect", "/builder", "/about", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/prices", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api"]
+    pages = ["/", "/docs", "/connect", "/builder", "/about", "/contact", "/privacy", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/prices", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api"]
     urls = ""
     for p in pages:
         priority = "1.0" if p == "/" else "0.8" if p in ("/docs", "/connect") else "0.6"
@@ -4864,8 +4884,22 @@ async def api_x402_discovery(request: web.Request) -> web.Response:
 
 
 async def page_404(request: web.Request) -> web.Response:
+    accept = request.headers.get("Accept", "")
+    if request.path.startswith("/api/") or "application/json" in accept:
+        problem = {
+            "type": "https://surp.ivc.lol/docs#errors",
+            "title": "Resource not found",
+            "status": 404,
+            "code": "not_found",
+            "message": f"No API resource exists at {request.path}.",
+            "resolution": "Check https://surp.ivc.lol/openapi.json for supported endpoints.",
+        }
+        return web.json_response(problem, status=404, content_type="application/problem+json")
+    if "text/markdown" in accept:
+        body = f"# Not found\n\nNo page exists at `{request.path}`. See [Surp API documentation](https://surp.ivc.lol/docs) or [llms.txt](https://surp.ivc.lol/llms.txt).\n"
+        return web.Response(text=body, content_type="text/markdown", status=404, headers={"Vary": "Accept"})
     html = _render_html(_404_CONTENT, "/")
-    return web.Response(text=html, content_type="text/html", status=404)
+    return web.Response(text=html, content_type="text/html", status=404, headers={"Vary": "Accept"})
 
 
 # ── Live metrics SSE broadcast (pattern: docs/proposals/tps-live-metrics/snippets/metrics_feed.py) ──
@@ -4969,6 +5003,24 @@ async def api_metrics_stream(request: web.Request) -> web.StreamResponse:
     return resp
 
 
+def _api_response_headers(limit: int = 60, remaining: int = 59, reset: int = 60) -> dict[str, str]:
+    return {
+        "RateLimit-Limit": str(limit),
+        "RateLimit-Remaining": str(max(0, remaining)),
+        "RateLimit-Reset": str(reset),
+        "Access-Control-Expose-Headers": "RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset, Retry-After, Deprecation, Sunset",
+    }
+
+
+@web.middleware
+async def api_metadata_middleware(request: web.Request, handler):
+    response = await handler(request)
+    if request.path.startswith("/api/") or request.path.startswith("/v1/"):
+        for key, value in _api_response_headers().items():
+            response.headers.setdefault(key, value)
+    return response
+
+
 def _agent_discovery_headers() -> dict[str, str]:
     return {
         "Link": (
@@ -4981,7 +5033,7 @@ def _agent_discovery_headers() -> dict[str, str]:
 
 
 def build_app() -> web.Application:
-    app = web.Application()
+    app = web.Application(middlewares=[api_metadata_middleware])
     app.on_startup.append(_metrics_writer_loop)
     app.on_cleanup.append(_metrics_writer_stop)
     app.router.add_get("/", page_home)
@@ -4991,6 +5043,8 @@ def build_app() -> web.Application:
     app.router.add_get("/api/metrics/stream", api_metrics_stream)
     app.router.add_get("/docs", page_docs)
     app.router.add_get("/about", page_about)
+    app.router.add_get("/contact", page_contact)
+    app.router.add_get("/privacy", page_privacy)
     app.router.add_get("/status", page_status)
     app.router.add_get("/dashboard", page_dashboard)
     app.router.add_get("/connect", page_connect)
