@@ -4628,9 +4628,22 @@ async def serve_agent_card(request: web.Request) -> web.Response:
             "network": os.environ.get("SURP_NETWORK", "eip155:8453"),
             "description": "EIP-3009 USDC authorization on Base, settled per request. No standing approval, no stored keys.",
         },
-        "skills": [
-            {"id": "surp-inference", "name": "AI inference", "description": "Submit chat completion requests through the Surp API."}
-        ],
+        "capabilities": {
+            "streaming": False,
+            "pushNotifications": False,
+            "stateTransitionHistory": False,
+        },
+        "defaultInputModes": ["application/json", "text/plain"],
+        "defaultOutputModes": ["application/json", "text/plain"],
+        "skills": [{
+            "id": "surp-inference",
+            "name": "AI inference routing",
+            "description": "Submit OpenAI-compatible chat completion requests through Surp's model router.",
+            "tags": ["ai-inference", "openai-compatible", "model-routing", "x402"],
+            "examples": ["Route this chat completion through surp/value", "List the models available through Surp"],
+            "inputModes": ["application/json", "text/plain"],
+            "outputModes": ["application/json", "text/plain"],
+        }],
         "supportedInterfaces": [
             {"url": "https://surp.ivc.lol/v1", "protocolBinding": "HTTP+JSON", "protocolVersion": "1.0"}
         ],
