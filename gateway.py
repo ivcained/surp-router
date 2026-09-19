@@ -431,6 +431,10 @@ PAGE_META = {
         "title": "surp.ivc.lol — cheapest LLM API on the internet | x402 pay-per-request",
         "desc": "Pay-per-request LLM inference at live cheapest prices. We watch the Surplus Intelligence marketplace and route every request to whichever model is cheapest right now. USDC on Base, no account needed.",
     },
+    "/developers": {
+        "title": "Surp Developer Portal — API, OpenAPI, Auth, MCP and SDK Guides",
+        "desc": "Developer resources for Surp: API documentation, OpenAPI schema, authentication, MCP discovery, Agent Cards, llms.txt, SDK examples, pricing, status, and self-serve API keys.",
+    },
     "/docs": {
         "title": "API Docs — surp.ivc.lol x402 LLM gateway",
         "desc": "Full API reference for surp.ivc.lol: the 15 built-in combos, custom combo builder, x402 payment flow, pricing formula, streaming, and response headers.",
@@ -631,6 +635,11 @@ async def page_home(request: web.Request) -> web.Response:
         markdown = "# Surp\n\nBase-native AI inference marketplace and x402 router.\n\n## Links\n- Docs: https://surp.ivc.lol/docs\n- Models: https://surp.ivc.lol/v1/models\n- Prices: https://surp.ivc.lol/prices\n- Status: https://surp.ivc.lol/status\n\n## Payments\nPay per request with x402 EIP-3009 USDC authorization on Base.\n"
         return web.Response(text=markdown, content_type="text/markdown", headers={"Vary": "Accept", **_agent_discovery_headers()})
     return web.Response(text=html, content_type="text/html", headers={"Cache-Control": "no-cache", "Vary": "Accept", **_agent_discovery_headers()})
+
+
+async def page_developers(request: web.Request) -> web.Response:
+    content = """<h1>Surp Developer Portal</h1><p>Build agent and application integrations with Surp's [OI]-compatible AI inference router.</p><h2>Core developer resources</h2><ul><li><a href='/docs'>Surp API documentation</a> — authentication, endpoints, x402 payment flow, pricing, streaming, and examples.</li><li><a href='/openapi.json'>Surp OpenAPI 3.1 specification</a> — typed requests, responses, operation IDs, and error models.</li><li><a href='/auth.md'>Surp agent authentication guide</a> — prepaid Bearer keys and x402 payment signatures.</li><li><a href='/mcp.json'>Surp MCP manifest</a> and <a href='/.well-known/mcp/server-card.json'>MCP Server Card</a>.</li><li><a href='/.well-known/agent-card.json'>Surp A2A Agent Card</a> and <a href='/.well-known/agent-skills/index.json'>Agent Skills index</a>.</li><li><a href='/llms.txt'>Surp llms.txt</a> — concise instructions for agents.</li></ul><h2>Start building</h2><p>Use <code>https://surp.ivc.lol/v1</code> as the base URL. List routes with <a href='/v1/models'>GET /v1/models</a> and submit completions to <code>POST /v1/chat/completions</code>. Create a self-serve key in the <a href='/app'>Surp account app</a>, use the <a href='/free-models'>sponsored free route</a>, or fulfill the x402 payment challenge returned by a paid request.</p><h2>Operations</h2><p>See <a href='/pricing'>pricing</a>, <a href='/status'>service status</a>, <a href='/privacy'>privacy</a>, and <a href='/contact'>developer support</a>.</p>"""
+    return web.Response(text=_render_html(content, "/developers"), content_type="text/html", headers=_agent_discovery_headers())
 
 
 async def page_docs(request: web.Request) -> web.Response:
@@ -2191,7 +2200,8 @@ _HTML_BASE = r"""<!DOCTYPE html>
     <nav class="site-menu" aria-label="primary">
       <div class="site-menu-label">▸ discover</div>
       <a href="/">home</a>
-      <a href="/docs" class="docs-link">docs ★</a>
+      <a href="/developers" class="docs-link">developers ★</a>
+      <a href="/docs" class="docs-link">API docs</a>
       <a href="/about">about</a>
       <a href="/system-design">system design</a>
       <a href="/proposal/srp">SRP proposal</a>
@@ -4599,7 +4609,13 @@ async def serve_robots(request: web.Request) -> web.Response:
 async def serve_sitemap(request: web.Request) -> web.Response:
     import time as _time
     lastmod = _time.strftime("%Y-%m-%d", _time.gmtime())
-    pages = ["/", "/docs", "/connect", "/builder", "/about", "/contact", "/privacy", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/prices", "/pricing", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api"]
+    pages = ["/", "/developers", "/docs", "/connect", "/builder", "/about", "/contact", "/privacy", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/prices", "/pricing", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api"]
+    machine_resources = [
+        "/openapi.json", "/auth.md", "/llms.txt", "/mcp.json",
+        "/.well-known/mcp/server-card.json", "/.well-known/agent-card.json",
+        "/.well-known/agent-skills/index.json",
+    ]
+    pages.extend(machine_resources)
     urls = ""
     for p in pages:
         priority = "1.0" if p == "/" else "0.8" if p in ("/docs", "/connect") else "0.6"
@@ -4740,8 +4756,19 @@ async def serve_llms_txt(request: web.Request) -> web.Response:
         "- Call POST https://surp.ivc.lol/v1/chat/completions with a prepaid Bearer key or fulfill the returned x402 payment challenge.",
         "- Call GET https://surp.ivc.lol/v1/models before selecting a route or model.",
         "",
+        "## Developer resources",
+        "- Developer portal: https://surp.ivc.lol/developers",
+        "- API documentation: https://surp.ivc.lol/docs",
+        "- OpenAPI 3.1: https://surp.ivc.lol/openapi.json",
+        "- Authentication: https://surp.ivc.lol/auth.md",
+        "- MCP manifest: https://surp.ivc.lol/mcp.json",
+        "- MCP Server Card: https://surp.ivc.lol/.well-known/mcp/server-card.json",
+        "- A2A Agent Card: https://surp.ivc.lol/.well-known/agent-card.json",
+        "- Agent Skills: https://surp.ivc.lol/.well-known/agent-skills/index.json",
+        "- Self-serve API keys: https://surp.ivc.lol/app",
+        "",
         "## Docs",
-        "- API: https://surp.ivc.lol/docs"
+        "- API: https://surp.ivc.lol/docs",
         "- Status: https://surp.ivc.lol/status",
         "- Prices: https://surp.ivc.lol/prices",
         "- About: https://surp.ivc.lol/about",
@@ -4780,7 +4807,13 @@ async def serve_openapi(request: web.Request) -> web.Response:
 async def serve_sitemap(request: web.Request) -> web.Response:
     import time as _time
     lastmod = _time.strftime("%Y-%m-%d", _time.gmtime())
-    pages = ["/", "/docs", "/connect", "/builder", "/about", "/contact", "/privacy", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/prices", "/pricing", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api"]
+    pages = ["/", "/developers", "/docs", "/connect", "/builder", "/about", "/contact", "/privacy", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/prices", "/pricing", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api"]
+    machine_resources = [
+        "/openapi.json", "/auth.md", "/llms.txt", "/mcp.json",
+        "/.well-known/mcp/server-card.json", "/.well-known/agent-card.json",
+        "/.well-known/agent-skills/index.json",
+    ]
+    pages.extend(machine_resources)
     urls = ""
     for p in pages:
         priority = "1.0" if p == "/" else "0.8" if p in ("/docs", "/connect") else "0.6"
@@ -5077,6 +5110,7 @@ def build_app() -> web.Application:
     app.router.add_get("/api/v1", api_x402_discovery)
     app.router.add_get("/api", api_x402_discovery)
     app.router.add_get("/api/metrics/stream", api_metrics_stream)
+    app.router.add_get("/developers", page_developers)
     app.router.add_get("/docs", page_docs)
     app.router.add_get("/about", page_about)
     app.router.add_get("/contact", page_contact)
