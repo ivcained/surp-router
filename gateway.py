@@ -4875,10 +4875,19 @@ async def serve_mcp_server_card(request: web.Request) -> web.Response:
 
 
 async def serve_agent_skills_index(request: web.Request) -> web.Response:
+    artifact_path = os.path.join(_STATIC_DIR, "agent-skills", "surp-api", "SKILL.md")
+    with open(artifact_path, "rb") as artifact_file:
+        digest = hashlib.sha256(artifact_file.read()).hexdigest()
     return web.json_response({
-        "$schema": "https://agentskills.io/schemas/agent-skills.json",
-        "skills": [{"name": "surp-api", "type": "api", "description": "Use Surp's OpenAI-compatible x402 API.", "url": "https://surp.ivc.lol/docs", "sha256": ""}],
-    })
+        "$schema": "https://schemas.agentskills.io/discovery/0.2.0/schema.json",
+        "skills": [{
+            "name": "surp-api",
+            "type": "skill-md",
+            "description": "Use Surp for OpenAI-compatible AI inference with live routing, prepaid API keys, or x402 USDC payments on Base.",
+            "url": "https://surp.ivc.lol/static/agent-skills/surp-api/SKILL.md",
+            "digest": f"sha256:{digest}",
+        }],
+    }, headers={"Access-Control-Allow-Origin": "*"})
 
 
 async def serve_ai_catalog(request: web.Request) -> web.Response:
