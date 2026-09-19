@@ -397,19 +397,36 @@
   <script>
     (() => {
       const tools = [{
-        name: 'surp_list_models',
-        description: 'List models available through Surp.',
-        inputSchema: { type: 'object', properties: {} },
-        execute: async () => (await fetch('/v1/models')).json()
+        name: 'surp_list_models', title: 'List Surp models',
+        description: 'List models and routing presets available through Surp.',
+        inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+        annotations: { readOnlyHint: true },
+        execute: async (_args, { signal } = {}) => (await fetch('/v1/models', { signal })).json()
       }, {
-        name: 'surp_get_status',
-        description: 'Read current Surp service status.',
-        inputSchema: { type: 'object', properties: {} },
-        execute: async () => (await fetch('/api/health')).json()
+        name: 'surp_get_status', title: 'Get Surp status',
+        description: 'Read current Surp gateway and upstream service status.',
+        inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+        annotations: { readOnlyHint: true },
+        execute: async (_args, { signal } = {}) => (await fetch('/api/health', { signal })).json()
+      }, {
+        name: 'surp_compare_prices', title: 'Compare Surp prices',
+        description: 'Compare live Surp routing prices using an optional text filter.',
+        inputSchema: { type: 'object', properties: { query: { type: 'string', description: 'Optional model or route search text' } }, additionalProperties: false },
+        annotations: { readOnlyHint: true },
+        execute: async ({ query = '' }, { signal } = {}) => (await fetch('/api/price-compare?search=' + encodeURIComponent(query), { signal })).json()
       }];
-      if (navigator.modelContext) {
-        const register = navigator.modelContext.registerTool || navigator.modelContext.provideContext;
-        if (register) tools.forEach(tool => register.call(navigator.modelContext, tool));
+      const context = navigator.modelContext;
+      if (!context) return;
+      const controller = new AbortController();
+      try {
+        if (typeof context.provideContext === 'function') {
+          navigator.modelContext.provideContext({ tools });
+        } else if (typeof context.registerTool === 'function') {
+          tools.forEach(tool => context.registerTool(tool, { signal: controller.signal }));
+        }
+        window.addEventListener('pagehide', () => controller.abort(), { once: true });
+      } catch (error) {
+        console.debug('WebMCP registration unavailable', error);
       }
     })();
   </script>
