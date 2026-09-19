@@ -33,6 +33,7 @@ interface PaymentRequired {
 export function ApiKeys() {
   const authFetch = useAuthFetch()
   const [loading, setLoading] = useState(true)
+  const [keys, setKeys] = useState<ApiKey[]>([])
   const [showCreate, setShowCreate] = useState(false)
   const [newName, setNewName] = useState('')
   const [newBudget, setNewBudget] = useState('')  // dollars
