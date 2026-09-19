@@ -4798,6 +4798,14 @@ async def serve_openapi(request: web.Request) -> web.Response:
             "description": "Base-native AI inference marketplace and x402 router.",
         },
         "servers": [{"url": "https://surp.ivc.lol/v1"}],
+        "x-service-info": {
+            "categories": ["ai", "developer-tools", "payments"],
+            "docs": {
+                "homepage": "https://surp.ivc.lol/developers",
+                "apiReference": "https://surp.ivc.lol/docs",
+                "llms": "https://surp.ivc.lol/llms.txt",
+            },
+        },
         "components": {"schemas": {
             "Problem": {"type": "object", "required": ["code", "message", "status"], "properties": {"type": {"type": "string", "format": "uri"}, "title": {"type": "string"}, "status": {"type": "integer"}, "code": {"type": "string"}, "message": {"type": "string"}, "resolution": {"type": "string"}}},
             "Model": {"type": "object", "required": ["id"], "properties": {"id": {"type": "string"}, "object": {"type": "string"}}},
@@ -4805,13 +4813,13 @@ async def serve_openapi(request: web.Request) -> web.Response:
             "ChatResponse": {"type": "object", "required": ["id", "choices"], "properties": {"id": {"type": "string"}, "object": {"type": "string"}, "choices": {"type": "array", "items": {"type": "object"}}}},
         }},
         "paths": {
-            "/chat/completions": {"post": {"operationId": "createChatCompletion", "summary": "Chat completions", "description": "OpenAI-compatible chat completions. Requires x402 EIP-3009 USDC payment on Base or a prepaid API key.", "requestBody": {"required": True, "content": {"application/json": {"schema": {"type": "object", "required": ["model", "messages"], "properties": {"model": {"type": "string"}, "messages": {"type": "array", "items": {"type": "object"}}, "max_tokens": {"type": "integer"}}}}}}, "responses": {"200": {"description": "Chat completion", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ChatResponse"}}}}, "402": {"description": "Payment required", "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}}, "404": {"description": "Route not found", "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}}, "429": {"description": "Rate limited", "headers": {"Retry-After": {"schema": {"type": "integer"}}}, "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}}, "500": {"description": "Server error", "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}}}}},
+            "/chat/completions": {"post": {"operationId": "createChatCompletion", "summary": "Chat completions", "description": "OpenAI-compatible chat completions. Requires x402 EIP-3009 USDC payment on Base or a prepaid API key.", "requestBody": {"required": True, "content": {"application/json": {"schema": {"type": "object", "required": ["model", "messages"], "properties": {"model": {"type": "string"}, "messages": {"type": "array", "items": {"type": "object"}}, "max_tokens": {"type": "integer"}}}}}}, "x-payment-info": {"offers": [{"intent": "charge", "method": "evm", "amount": None, "currency": USDC_BASE_MAINNET, "description": "Dynamic per-request USDC charge on Base; the runtime HTTP 402 challenge provides the authoritative amount."}]}, "responses": {"200": {"description": "Chat completion", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ChatResponse"}}}}, "402": {"description": "Payment required", "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}}, "404": {"description": "Route not found", "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}}, "429": {"description": "Rate limited", "headers": {"Retry-After": {"schema": {"type": "integer"}}}, "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}}, "500": {"description": "Server error", "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}}}}},
             "/models": {"get": {"operationId": "listModels", "summary": "List models", "description": "List available Surp routes and models.", "responses": {"200": {"description": "Available models", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ModelsResponse"}}}}, "500": {"description": "Server error", "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}}}}},
         },
         "x-rate-limit-policy": {"headers": {"RateLimit-Limit": "60", "RateLimit-Remaining": "59", "RateLimit-Reset": "60"}, "documentation": "Clients should honor RateLimit-* headers and Retry-After on 429 responses."},
         "x-deprecation-policy": "Stable API versions use /v1. Breaking changes receive a Deprecation or Sunset response header and are documented at https://surp.ivc.lol/docs.",
     }
-    return web.json_response(doc)
+    return web.json_response(doc, headers={"Cache-Control": "public, max-age=300", "Access-Control-Allow-Origin": "*"})
 
 
 async def serve_sitemap(request: web.Request) -> web.Response:
