@@ -4941,6 +4941,72 @@ async def serve_agent_skills_index(request: web.Request) -> web.Response:
     }, headers={"Access-Control-Allow-Origin": "*"})
 
 
+async def serve_ucp_profile(request: web.Request) -> web.Response:
+    """UCP business profile for Surp's paid content-inference service."""
+    version = "2026-08-25"
+    profile = {
+        "ucp": {
+            "version": version,
+            "services": {
+                "lol.ivc.surp.content": [{
+                    "version": version,
+                    "spec": "https://surp.ivc.lol/ucp/spec/content-inference",
+                    "schema": "https://surp.ivc.lol/openapi.json",
+                    "transport": "rest",
+                    "endpoint": "https://surp.ivc.lol/v1",
+                }],
+            },
+            "capabilities": {
+                "lol.ivc.surp.content.inference": [{
+                    "version": version,
+                    "spec": "https://surp.ivc.lol/ucp/spec/content-inference",
+                    "schema": "https://surp.ivc.lol/ucp/schemas/content-inference.json",
+                }],
+            },
+            "payment_handlers": {},
+            "endpoints": {
+                "profile": "https://surp.ivc.lol/.well-known/ucp",
+                "inference": "https://surp.ivc.lol/v1/chat/completions",
+                "models": "https://surp.ivc.lol/v1/models",
+            },
+        },
+    }
+    return web.json_response(profile, headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "public, max-age=300"})
+
+
+async def serve_ucp_inference_schema(request: web.Request) -> web.Response:
+    schema = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "https://surp.ivc.lol/ucp/schemas/content-inference.json",
+        "name": "lol.ivc.surp.content.inference",
+        "title": "Surp Content Inference",
+        "description": "Request and response metadata for paid AI content inference through Surp.",
+        "version": "2026-08-25",
+        "type": "object",
+        "$defs": {
+            "request": {"type": "object", "required": ["model", "messages"], "properties": {"model": {"type": "string"}, "messages": {"type": "array", "items": {"type": "object"}}, "max_tokens": {"type": "integer", "minimum": 1}}},
+            "response": {"type": "object", "required": ["id", "choices"], "properties": {"id": {"type": "string"}, "choices": {"type": "array", "items": {"type": "object"}}}},
+        },
+    }
+    return web.json_response(schema, headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "public, max-age=300"})
+
+
+async def serve_ucp_inference_spec(request: web.Request) -> web.Response:
+    body = """# Surp Content Inference
+
+Surp exposes paid AI content inference through an [OI]-compatible REST service.
+
+- UCP version: `2026-08-25`
+- Service endpoint: `https://surp.ivc.lol/v1`
+- Inference operation: `POST /chat/completions`
+- Model discovery: `GET /models`
+- Payment: dynamic per-request USDC charge using the runtime HTTP 402 challenge
+
+The UCP profile advertises this Surp-owned capability under `lol.ivc.surp.content.inference`. It does not claim UCP shopping checkout, cart, catalog, order, or third-party payment-handler support.
+"""
+    return web.Response(text=body, content_type="text/markdown", headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "public, max-age=300"})
+
+
 async def serve_ai_catalog(request: web.Request) -> web.Response:
     return web.json_response({
         "specVersion": "1.0",
@@ -5224,6 +5290,9 @@ def build_app() -> web.Application:
     app.router.add_get("/.well-known/oauth-protected-resource", serve_oauth_protected_resource)
     app.router.add_get("/.well-known/mcp/server-card.json", serve_mcp_server_card)
     app.router.add_get("/.well-known/agent-skills/index.json", serve_agent_skills_index)
+    app.router.add_get("/.well-known/ucp", serve_ucp_profile)
+    app.router.add_get("/ucp/schemas/content-inference.json", serve_ucp_inference_schema)
+    app.router.add_get("/ucp/spec/content-inference", serve_ucp_inference_spec)
     app.router.add_get("/.well-known/ai-catalog.json", serve_ai_catalog)
     app.router.add_get("/.well-known/dns-aid.json", serve_ai_catalog)
     app.router.add_get("/.well-known/api-catalog", serve_api_catalog)
