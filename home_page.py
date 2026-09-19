@@ -253,7 +253,7 @@ Do not expect a SurplusIntelligence balance here. This key only works on this ba
       <b>Technical details belong in the docs.</b>
       <p>Read about x402 settlement, cache fingerprints, route pools, benchmarks, model catalogs, and the gateway design when you need them. Intelligence scores: Artificial Analysis.</p>
       <a href="/docs" class="docs-btn">Read the documentation →</a>
-      <div class="home-quiet-links"><a href="/prices">compare prices</a><a href="/status">system status</a><a href="/builder">build a route</a><a href="/system-design">system design</a></div>
+      <div class="home-quiet-links"><a href="/pricing">pricing</a><a href="/docs">API docs</a><a href="/models">models</a><a href="/about">about</a><a href="/contact">contact</a><a href="/privacy">privacy</a><a href="/status">system status</a><a href="/builder">build a route</a><a href="/system-design">system design</a></div>
     </div>
   </section>
 </div>

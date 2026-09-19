@@ -781,6 +781,11 @@ async def page_price_compare(request: web.Request) -> web.Response:
     return web.Response(text=_render_html(pcp.CONTENT, "/prices"), content_type="text/html")
 
 
+async def page_pricing(request: web.Request) -> web.Response:
+    """Stable pricing alias for agents and people using /pricing."""
+    return await page_price_compare(request)
+
+
 async def api_custom_create(request: web.Request) -> web.Response:
     """POST /api/combos/custom — build your own combo from chosen models."""
     try:
@@ -4594,7 +4599,7 @@ async def serve_robots(request: web.Request) -> web.Response:
 async def serve_sitemap(request: web.Request) -> web.Response:
     import time as _time
     lastmod = _time.strftime("%Y-%m-%d", _time.gmtime())
-    pages = ["/", "/docs", "/connect", "/builder", "/about", "/contact", "/privacy", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/prices", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api"]
+    pages = ["/", "/docs", "/connect", "/builder", "/about", "/contact", "/privacy", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/prices", "/pricing", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api"]
     urls = ""
     for p in pages:
         priority = "1.0" if p == "/" else "0.8" if p in ("/docs", "/connect") else "0.6"
@@ -4762,7 +4767,7 @@ async def serve_openapi(request: web.Request) -> web.Response:
 async def serve_sitemap(request: web.Request) -> web.Response:
     import time as _time
     lastmod = _time.strftime("%Y-%m-%d", _time.gmtime())
-    pages = ["/", "/docs", "/connect", "/builder", "/about", "/contact", "/privacy", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/prices", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api"]
+    pages = ["/", "/docs", "/connect", "/builder", "/about", "/contact", "/privacy", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/prices", "/pricing", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api"]
     urls = ""
     for p in pages:
         priority = "1.0" if p == "/" else "0.8" if p in ("/docs", "/connect") else "0.6"
@@ -5068,6 +5073,7 @@ def build_app() -> web.Application:
     app.router.add_get("/models/{slug}", page_model_detail)
     app.router.add_get("/compare", page_compare)
     app.router.add_get("/prices", page_price_compare)
+    app.router.add_get("/pricing", page_pricing)
     app.router.add_get("/find", page_find)
     app.router.add_get("/top", page_top)
     app.router.add_get("/api/compare", api_compare)
