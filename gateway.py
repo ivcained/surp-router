@@ -4941,6 +4941,30 @@ async def serve_agent_skills_index(request: web.Request) -> web.Response:
     }, headers={"Access-Control-Allow-Origin": "*"})
 
 
+async def serve_acp_discovery(request: web.Request) -> web.Response:
+    """Public ACP discovery metadata for Surp's commerce surface."""
+    version = "2026-04-17"
+    document = {
+        "protocol": {
+            "name": "acp",
+            "version": version,
+            "supported_versions": [version],
+            "documentation_url": "https://surp.ivc.lol/developers",
+        },
+        "api_base_url": "https://surp.ivc.lol/acp",
+        "transports": ["rest"],
+        "capabilities": {
+            "services": ["checkout"],
+            "supported_currencies": ["USD"],
+            "supported_locales": ["en-US"],
+        },
+    }
+    return web.json_response(document, headers={
+        "Access-Control-Allow-Origin": "*",
+        "Cache-Control": "public, max-age=3600",
+    })
+
+
 async def serve_ucp_profile(request: web.Request) -> web.Response:
     """UCP business profile for Surp's paid content-inference service."""
     version = "2026-08-25"
@@ -5290,6 +5314,7 @@ def build_app() -> web.Application:
     app.router.add_get("/.well-known/oauth-protected-resource", serve_oauth_protected_resource)
     app.router.add_get("/.well-known/mcp/server-card.json", serve_mcp_server_card)
     app.router.add_get("/.well-known/agent-skills/index.json", serve_agent_skills_index)
+    app.router.add_get("/.well-known/acp.json", serve_acp_discovery)
     app.router.add_get("/.well-known/ucp", serve_ucp_profile)
     app.router.add_get("/ucp/schemas/content-inference.json", serve_ucp_inference_schema)
     app.router.add_get("/ucp/spec/content-inference", serve_ucp_inference_spec)
