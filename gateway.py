@@ -4844,12 +4844,21 @@ async def serve_oauth_protected_resource(request: web.Request) -> web.Response:
 
 
 async def serve_mcp_server_card(request: web.Request) -> web.Response:
-    return web.json_response({
-        "serverInfo": {"name": "surp", "version": "1.0.0"},
-        "description": "Surp AI inference router",
-        "capabilities": {"tools": {}},
-        "transport": {"type": "streamable-http", "url": "https://surp.ivc.lol/v1"},
-    })
+    """Public SEP-2127-style MCP Server Card for browser discovery."""
+    card = {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/v1/server-card.schema.json",
+        "name": "lol.ivc.surp/router",
+        "title": "Surp Router",
+        "description": "Discover and call Surp's Base-native AI inference routing service.",
+        "version": "1.0.0",
+        "websiteUrl": "https://surp.ivc.lol/docs",
+        "remotes": [{
+            "type": "streamable-http",
+            "url": "https://surp.ivc.lol/mcp",
+            "supportedProtocolVersions": ["2025-06-18"],
+        }],
+    }
+    return web.json_response(card, headers={"Access-Control-Allow-Origin": "*"})
 
 
 async def serve_agent_skills_index(request: web.Request) -> web.Response:
