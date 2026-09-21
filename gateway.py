@@ -4621,7 +4621,7 @@ async def serve_sitemap(request: web.Request) -> web.Response:
     lastmod = _time.strftime("%Y-%m-%d", _time.gmtime())
     pages = ["/", "/developers", "/docs", "/connect", "/builder", "/about", "/contact", "/privacy", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/prices", "/pricing", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api"]
     machine_resources = [
-        "/openapi.json", "/auth.md", "/llms.txt", "/mcp.json",
+        "/openapi.json", "/auth.md", "/llms.txt", "/llms-full.txt", "/llms-ctx-full.txt", "/mcp.json",
         "/.well-known/mcp/server-card.json", "/.well-known/agent-card.json",
         "/.well-known/agent-skills/index.json",
     ]
@@ -4767,6 +4767,7 @@ async def serve_llms_txt(request: web.Request) -> web.Response:
         "- Call GET https://surp.ivc.lol/v1/models before selecting a route or model.",
         "",
         "## Developer resources",
+        "- Full agent context: https://surp.ivc.lol/llms-full.txt",
         "- Developer portal: https://surp.ivc.lol/developers",
         "- API documentation: https://surp.ivc.lol/docs",
         "- OpenAPI 3.1: https://surp.ivc.lol/openapi.json",
@@ -4786,6 +4787,142 @@ async def serve_llms_txt(request: web.Request) -> web.Response:
         "",
     ]
     return web.Response(text="\n".join(lines), content_type="text/plain")
+
+
+async def serve_llms_full(request: web.Request) -> web.Response:
+    """Expanded, self-contained Markdown context for agents and LLM ingestion."""
+    body = """# Surp — full agent context
+
+> Surp is a Base-native AI inference marketplace and OpenAI-compatible router. It chooses models from the live Surplus Intelligence marketplace and supports a sponsored free route, prepaid API keys, and per-request x402 payments in USDC on Base.
+
+## When to use Surp
+
+Use Surp when an agent needs text inference without binding itself to one model vendor. Surp is a good fit for agents that need live cost-aware routing, a stable OpenAI-compatible endpoint, autonomous HTTP payments, or a free route for bounded testing.
+
+- Use `surp/free` for sponsored requests within the current daily limits.
+- Use `surp/value` for a balance of intelligence and price.
+- Use `surp/frontier` when output quality matters more than price.
+- Use `surp/fast` when latency matters most.
+- Use `surp/vision` for compatible multimodal requests.
+- Query `GET /v1/models` before relying on a route or concrete model.
+
+Do not use Surp when a workflow requires a guaranteed fixed upstream model unless you explicitly select that supported model. Live routes can change their selected model as price, availability, and routing data change.
+
+## API reference
+
+Base URL: `https://surp.ivc.lol/v1`
+
+### List models
+
+`GET https://surp.ivc.lol/v1/models`
+
+This endpoint lists available Surp routes and models. It does not require payment.
+
+### Create a chat completion
+
+`POST /v1/chat/completions` at https://surp.ivc.lol/v1/chat/completions
+
+Example request:
+
+```json
+{
+  "model": "surp/value",
+  "messages": [
+    {"role": "user", "content": "Explain this error."}
+  ],
+  "max_tokens": 300
+}
+```
+
+The request and response follow the OpenAI chat-completions shape. The authoritative typed API contract is at https://surp.ivc.lol/openapi.json.
+
+## Authentication and payment
+
+Surp supports three access paths.
+
+### Sponsored free route
+
+Use `surp/free` for zero-cost requests within current treasury and abuse-control limits. Availability, model selection, token limits, and daily capacity can change. See https://surp.ivc.lol/free-models for live details.
+
+### Prepaid API key
+
+Create a key through https://surp.ivc.lol/app. Send it as:
+
+```http
+Authorization: Bearer YOUR_SURP_KEY
+```
+
+A Surp API key works only with the Surp base URL. It is not a Surplus Intelligence credential. Store keys in a secret manager and never publish them.
+
+### x402 per-request payment
+
+A paid request without a payment credential returns HTTP 402 and a `PAYMENT-REQUIRED` header. The challenge provides the authoritative amount, recipient, network, and asset. Sign the EIP-3009 USDC authorization and retry with `PAYMENT-SIGNATURE`. Surp settles on Base and does not need the wallet private key.
+
+The Surp payment destination is separate from any upstream Surplus Intelligence deposit address. Never send funds to a Privy embedded-wallet address as if it were the upstream deposit address.
+
+## Pricing and routing
+
+Surp resolves a route against current marketplace information, applies its documented markup and minimum, and returns the payment challenge before paid execution. Dynamic route prices can change between calls. Cache-eligible deterministic requests may use a discounted exact-response cache path.
+
+Pricing: https://surp.ivc.lol/pricing
+Route builder: https://surp.ivc.lol/builder
+Model finder: https://surp.ivc.lol/find
+System status: https://surp.ivc.lol/status
+
+## Caching
+
+Surp can cache exact deterministic responses for eligible requests. Eligible requests generally require deterministic settings and no unsupported tool or streaming behavior. Cache responses expose Surp cache headers so callers can distinguish hits, misses, and bypasses. Read https://surp.ivc.lol/cache for current behavior and public metrics.
+
+## Error handling
+
+API errors use structured JSON. Unknown API routes return `application/problem+json` with `code`, `message`, and `resolution`. Important statuses include:
+
+- `400`: invalid request or unsupported input.
+- `401`: invalid or missing API-key authentication where required.
+- `402`: payment required or payment verification failed.
+- `404`: unknown API resource.
+- `429`: rate limited; honor `Retry-After` when present.
+- `500` or `503`: transient server or upstream failure.
+
+API responses expose `RateLimit-Limit`, `RateLimit-Remaining`, and `RateLimit-Reset`. Agents should back off rather than retrying rapidly.
+
+## Discovery documents
+
+- Developer portal: https://surp.ivc.lol/developers
+- API documentation: https://surp.ivc.lol/docs
+- OpenAPI: https://surp.ivc.lol/openapi.json
+- Authentication: https://surp.ivc.lol/auth.md
+- Short agent index: https://surp.ivc.lol/llms.txt
+- MCP manifest: https://surp.ivc.lol/mcp.json
+- MCP Server Card: https://surp.ivc.lol/.well-known/mcp/server-card.json
+- A2A Agent Card: https://surp.ivc.lol/.well-known/agent-card.json
+- Agent Skills index: https://surp.ivc.lol/.well-known/agent-skills/index.json
+- API catalog: https://surp.ivc.lol/.well-known/api-catalog
+- ARD catalog: https://surp.ivc.lol/.well-known/ai-catalog.json
+- OAuth protected-resource metadata: https://surp.ivc.lol/.well-known/oauth-protected-resource
+- UCP profile: https://surp.ivc.lol/.well-known/ucp
+- ACP discovery: https://surp.ivc.lol/.well-known/acp.json
+
+## Browser-agent tools
+
+The homepage and account application register WebMCP read-only tools when `navigator.modelContext` is available. The tools list models, read service status, and compare prices. Browsers without WebMCP continue to work normally.
+
+## Commerce and agent protocols
+
+Surp publishes x402 and MPP discovery for its paid inference route. It also publishes UCP and ACP discovery documents for agent-commerce interoperability. Discovery metadata describes the public surfaces; runtime x402 challenges remain authoritative for Surp payment settlement unless a route explicitly documents another live payment handler.
+
+## Operational and trust resources
+
+- About: https://surp.ivc.lol/about
+- Contact: https://surp.ivc.lol/contact
+- Privacy: https://surp.ivc.lol/privacy
+- Service status: https://surp.ivc.lol/status
+- Architecture: https://surp.ivc.lol/system-design
+- Source: https://github.com/ivcained/surp-router
+
+Contact developer support at hi@surp.ivc.lol. Do not send passwords, API keys, payment signatures, wallet private keys, or other credentials by email.
+"""
+    return web.Response(text=body, content_type="text/plain", headers={"Cache-Control": "public, max-age=300", "Access-Control-Allow-Origin": "*"})
 
 
 async def serve_openapi(request: web.Request) -> web.Response:
@@ -4827,7 +4964,7 @@ async def serve_sitemap(request: web.Request) -> web.Response:
     lastmod = _time.strftime("%Y-%m-%d", _time.gmtime())
     pages = ["/", "/developers", "/docs", "/connect", "/builder", "/about", "/contact", "/privacy", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/prices", "/pricing", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api"]
     machine_resources = [
-        "/openapi.json", "/auth.md", "/llms.txt", "/mcp.json",
+        "/openapi.json", "/auth.md", "/llms.txt", "/llms-full.txt", "/llms-ctx-full.txt", "/mcp.json",
         "/.well-known/mcp/server-card.json", "/.well-known/agent-card.json",
         "/.well-known/agent-skills/index.json",
     ]
@@ -5323,6 +5460,8 @@ def build_app() -> web.Application:
     app.router.add_get("/.well-known/api-catalog", serve_api_catalog)
     app.router.add_get("/.well-known/ai-plugin.json", serve_ai_plugin)
     app.router.add_get("/llms.txt", serve_llms_txt)
+    app.router.add_get("/llms-full.txt", serve_llms_full)
+    app.router.add_get("/llms-ctx-full.txt", serve_llms_full)
     app.router.add_get("/openapi.json", serve_openapi)
     app.router.add_get("/auth.md", serve_auth_md)
     app.router.add_get("/mcp.json", serve_mcp_card)
