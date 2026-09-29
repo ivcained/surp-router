@@ -163,12 +163,13 @@ CONTENT = r'''
         <div class="demo-buttons" role="group" aria-label="route" aria-describedby="route-hint">
           <button class="active" data-mode="free">Free</button>
           <button data-mode="value">Value</button>
+          <button data-mode="jev">Jev</button>
           <button data-mode="frontier">Frontier</button>
           <button data-mode="fast">Fast</button>
           <button data-mode="vision">Vision</button>
           <button data-mode="custom">Custom</button>
         </div>
-        <p class="demo-route-hint" id="route-hint">Free = $0, daily cap · Value = smart + cheap · Frontier = best quality · Fast = lowest latency · Vision = images · Custom = tune weights</p>
+        <p class="demo-route-hint" id="route-hint">Free = $0, daily cap · Value = smart + cheap · Jev = decision-model routing · Frontier = best quality · Fast = lowest latency · Vision = images · Custom = tune weights</p>
         <div class="demo-custom" id="demo-custom">
           <p class="dim">Set how much intelligence, speed, and discount matter. Cost here is Surplus % off the AA list price.</p>
           <div class="sliders">

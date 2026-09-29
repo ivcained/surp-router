@@ -61,7 +61,7 @@ PRO_TOKENS = (
 )
 
 BUILTIN_COMBOS: list[str] = [
-    "value", "frontier", "fast", "vision", "custom",
+    "value", "frontier", "fast", "vision", "custom", "jev",
     "best-coding", "best-reasoning", "best-fast", "best-vision", "best-chat",
     "best-coding-fast",
     "pro-coding", "pro-reasoning", "pro-vision", "pro-chat", "pro-fast",
