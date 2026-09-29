@@ -243,3 +243,22 @@ def test_jev_disabled_by_default(monkeypatch):
     import jev_router
     assert jev_router.live_enabled() is False
     assert jev_router.shadow_enabled() is False
+
+
+def test_jev_updates_page_registered_and_renders():
+    import gateway
+    from aiohttp.test_utils import make_mocked_request
+
+    app = gateway.build_app()
+    paths = [r.resource.canonical for r in app.router.routes()]
+    assert "/updates/jev-routing" in paths
+
+    req = make_mocked_request("GET", "/updates/jev-routing")
+    resp = asyncio.run(gateway.page_updates_jev(req))
+    assert resp.status == 200
+    body = resp.text
+    assert "surp/jev" in body
+    assert "decision model" in body.lower()
+    assert "fail-open" in body.lower()
+    assert "No prompt content" in body
+    assert "/api/jev/stats" in body

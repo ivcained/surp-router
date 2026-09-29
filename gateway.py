@@ -663,6 +663,61 @@ async def page_about(request: web.Request) -> web.Response:
     return web.Response(text=html, content_type="text/html")
 
 
+async def page_updates_jev(request: web.Request) -> web.Response:
+    content = """<h1>Jev routing: a decision model picks your route</h1>
+<p class="dim">update · 2026-09-29</p>
+
+<h2>What shipped</h2>
+<p>Surp now integrates <strong>Jev</strong>, TypeSafe's System One decision model, as an optional routing brain. Instead of a static quality/cost table alone, a purpose-built model scores each candidate route per request and picks one — with a confidence score and fail-open fallback to the existing router.</p>
+<p>It ships in two stages:</p>
+<ol>
+<li><strong>Shadow mode</strong> (live now): Jev scores routed requests against the same candidate list the router uses and we log what it would have picked. No traffic changes.</li>
+<li><strong>Opt-in preset <code>surp/jev</code></strong> (live now): the route follows Jev's pick when confidence clears a threshold and the pick is not pricier than the router's. Any timeout, error, low confidence, or price guard falls back to the existing router.</li>
+</ol>
+<p>Hermes-side integration also landed: the <code>hermes-jev-skills</code> plugin set gives the agent Jev-backed model routing, memory reranking, compaction selection, and skill selection in shadow mode.</p>
+
+<h2>Why a decision model instead of a routing table</h2>
+<p>A static table maps request class to route. It cannot weigh latency, price, quality, and cache state against each other per request. Jev evaluates the request envelope — token estimate, modality, route health, cache state — and scores each candidate. The decision is a function, not a lookup.</p>
+
+<h2>How it works</h2>
+<ul>
+<li><strong>Bounded candidate list.</strong> Jev sees the same pool the router resolved for your combo. No arbitrary endpoints, no free-form model names.</li>
+<li><strong>No prompt content.</strong> Jev receives metadata only: token estimate, modality flags, route health, cache eligibility. Your prompt never leaves the router.</li>
+<li><strong>Confidence threshold.</strong> Each pick carries a confidence score. Below the threshold, the existing router takes over.</li>
+<li><strong>Price guard.</strong> Jev's pick may not cost more than the router's pick. A pricier pick falls back, never re-quotes.</li>
+<li><strong>Fail-open.</strong> Timeout (600ms), error, or low confidence → the existing router serves the request. Availability never depends on Jev.</li>
+</ul>
+
+<h2>Shadow telemetry</h2>
+<p>For every routed request in shadow mode we log the route Jev would have picked, its confidence, the route actually taken, and whether they agree. Public counters live at <a href="/api/jev/stats"><code>GET /api/jev/stats</code></a> — decision totals, fallback rate, agreement rate, and p50 decision latency. We will publish the agreement rate once there is enough data to mean something.</p>
+
+<h2>How to try it</h2>
+<p>Set your model to <code>surp/jev</code>:</p>
+<pre>curl https://surp.ivc.lol/v1/chat/completions \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer YOUR_SURP_KEY" \\
+  -d '{
+    "model": "surp/jev",
+    "messages": [{"role": "user", "content": "Hello"}]
+  }'</pre>
+<p>The x402 payment flow and prepaid API keys work exactly as before. The preset is opt-in; <code>surp/value</code> and friends stay static. Paid responses carry an <code>X-Surp-Jev</code> header with the pick, confidence, decision latency, and whether the fallback fired.</p>
+
+<h2>What is next</h2>
+<ul>
+<li>Shadow data collection before any decision about default status</li>
+<li>Agreement-rate reporting on <a href="/api/jev/stats">/api/jev/stats</a></li>
+<li>Hermes plugin v0.3.0 with Jev-aware tooling, and a catalog re-pin</li>
+</ul>
+
+<h2>See also</h2>
+<ul>
+<li><a href="https://legitclub.com/jev-typesafe-ai-field-test/">Signal Run: Jev as a bounded game director</a></li>
+<li><a href="/docs">Surp documentation</a> — x402 flow, route specs, caching behavior</li>
+<li><a href="/api/jev/stats">/api/jev/stats</a> — live routing telemetry</li>
+</ul>"""
+    return web.Response(text=_render_html(content, "/updates/jev-routing"), content_type="text/html", headers=_agent_discovery_headers())
+
+
 async def page_contact(request: web.Request) -> web.Response:
     content = """<h1>Contact Surp</h1><p>Surp provides a Base-native AI inference router for developers and autonomous agents. For product questions, integration support, security reports, billing questions, or partnership requests, email <a href='mailto:hi@surp.ivc.lol'>hi@surp.ivc.lol</a>. Include the affected endpoint, request timestamp, request ID when available, and whether the call used x402 or a prepaid API key. Never email API keys, wallet private keys, payment signatures, or other credentials. Technical documentation is available at <a href='/docs'>/docs</a>, machine-readable API definitions at <a href='/openapi.json'>/openapi.json</a>, and current service state at <a href='/status'>/status</a>. Security issues should include reproducible steps and impact while avoiding access to data that is not yours. We respond through the email address supplied by the reporter.</p>"""
     return web.Response(text=_render_html(content, "/contact"), content_type="text/html")
@@ -4832,6 +4887,7 @@ async def serve_llms_txt(request: web.Request) -> web.Response:
         "",
         "## Developer resources",
         "- Full agent context: https://surp.ivc.lol/llms-full.txt",
+        "- Jev decision-model routing: https://surp.ivc.lol/updates/jev-routing",
         "- Developer portal: https://surp.ivc.lol/developers",
         "- API documentation: https://surp.ivc.lol/docs",
         "- OpenAPI 3.1: https://surp.ivc.lol/openapi.json",
@@ -5422,6 +5478,7 @@ def build_app() -> web.Application:
     app.router.add_get("/developers", page_developers)
     app.router.add_get("/docs", page_docs)
     app.router.add_get("/about", page_about)
+    app.router.add_get("/updates/jev-routing", page_updates_jev)
     app.router.add_get("/contact", page_contact)
     app.router.add_get("/privacy", page_privacy)
     app.router.add_get("/status", page_status)
