@@ -136,6 +136,10 @@ OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models"
 PRICE_COMPARE_TTL_SECONDS = int(os.environ.get("SURP_PRICE_COMPARE_TTL_SECONDS", "60"))
 _PRICE_COMPARE_CACHE: dict[str, Any] = {"fetched_at": 0.0, "models": {}, "generated_at": None}
 _PRICE_COMPARE_LOCK = asyncio.Lock()
+
+# Retained references for fire-and-forget shadow tasks so the event loop's GC
+# cannot collect them mid-flight (review finding C-fire-and-forget).
+_JEV_SHADOW_TASKS: set = set()
 STICKY_TTL_SECONDS = int(os.environ.get("SURP_STICKY_TTL_SECONDS", "300"))
 STICKY_TOLERANCE_PCT = float(os.environ.get("SURP_STICKY_TOLERANCE_PCT", "30"))
 _RESPONSE_CACHE = ct.ResponseCache(CACHE_DB, CACHE_TTL_SECONDS, CACHE_MAX_ENTRIES)
@@ -1358,7 +1362,9 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
             async def _jev_shadow_task():
                 d = await _jev.decide(_cands, _state)
                 jev_router.log_decision("shadow", combo, resolved_model, d, len(_cands))
-            asyncio.create_task(_jev_shadow_task())
+            _task = asyncio.create_task(_jev_shadow_task())
+            _JEV_SHADOW_TASKS.add(_task)
+            _task.add_done_callback(_JEV_SHADOW_TASKS.discard)
 
     # Exact-response caching is opt-in-by-safety: deterministic, non-streaming,
     # tool-free requests only. We peek before payment so cached responses can be
