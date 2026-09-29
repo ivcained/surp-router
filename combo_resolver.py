@@ -94,6 +94,7 @@ COMBO_DESCRIPTIONS: dict[str, str] = {
     "free-coding": "treasury-sponsored free coding models with live fallback",
     "free-fast": "treasury-sponsored free fast/small models with live fallback",
     "srup-free": "legacy alias of surp/free (treasury-sponsored)",
+    "jev": "Jev decision-model routing — TypeSafe Jev picks from the value pool per request (bounded, metadata-only, fail-open)",
 }
 
 
@@ -212,7 +213,7 @@ def pool_for(combo: str, markets: list[dict]) -> list[dict]:
         wanted = combo[7:]
         pool = [m for m in all_text if m["model"].lower() == wanted.lower()]
         return pool
-    if combo in ("value", "frontier", "fast", "custom"):
+    if combo in ("value", "frontier", "fast", "custom", "jev"):
         return sorted(all_text, key=price_of)
     if combo == "vision":
         return sorted([m for m in all_text if is_vision(m)], key=price_of)

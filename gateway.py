@@ -31,6 +31,7 @@ from aiohttp import web
 
 import stats as st
 import combo_resolver as cr
+import jev_router
 import model_info as mi
 import landing_pages as lp
 import cache_tech as ct
@@ -1250,6 +1251,60 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
             surplus_price = cr.price_of(winner)
             routing_reason = "strict-live-cheapest"
 
+    # ── Jev routing (bounded decision-model router) ──
+    # Live mode: for the surp/jev preset, Jev picks from the same pool and is
+    # honored only when confident; every failure falls back to the pick above.
+    # Shadow mode: Jev's would-be pick is logged for telemetry; the served
+    # model never changes. Both are off unless JEV_LIVE / JEV_SHADOW are set.
+    jev_pick_block = None
+    _jev = jev_router.JevRouter.from_env()
+    _jev_pool = routing_pool if routing_pool else ([{"model": resolved_model}] if resolved_model else [])
+    if _jev.enabled and (jev_router.live_enabled() or jev_router.shadow_enabled()):
+        _cands = aa_router.annotate(_jev_pool)
+        _state = jev_router.build_state(
+            payload=payload,
+            pool_size=len(_cands),
+            model_class=cr.class_of({"model": resolved_model}) if resolved_model else "chat",
+            cache_eligible=ct.is_response_cacheable(payload) and not bypass_cache,
+        )
+        if combo == "jev" and jev_router.live_enabled():
+            decision = await _jev.decide(_cands, _state)
+            jev_router.log_decision("live", combo, resolved_model, decision, len(_cands))
+            if decision.ok:
+                _jw = next((m for m in _jev_pool if m.get("model") == decision.choice), None)
+                if _jw is not None:
+                    _jev_price = cr.price_of(_jw)
+                    # Price guard: Jev's pick may not cost more than the AA pick
+                    # already priced into this request's 402/charge. A pricier
+                    # pick must fall back, never re-quote or over-charge.
+                    if _jev_price <= surplus_price:
+                        resolved_model = decision.choice
+                        surplus_price = _jev_price
+                        routing_reason = f"jev (conf={decision.confidence:.2f})"
+                        jev_pick_block = {
+                            "pick": decision.choice,
+                            "confidence": decision.confidence,
+                            "latency_ms": round(decision.latency_ms, 1),
+                            "fallback": False,
+                        }
+                    else:
+                        decision = jev_router.JevDecision(
+                            ok=False, choice=decision.choice, confidence=decision.confidence,
+                            latency_ms=decision.latency_ms, fallback_reason="price_guard")
+            if jev_pick_block is None:
+                jev_pick_block = {
+                    "pick": None,
+                    "confidence": decision.confidence,
+                    "latency_ms": round(decision.latency_ms, 1),
+                    "fallback": True,
+                    "fallback_reason": decision.fallback_reason,
+                }
+        elif jev_router.shadow_enabled():
+            async def _jev_shadow_task():
+                d = await _jev.decide(_cands, _state)
+                jev_router.log_decision("shadow", combo, resolved_model, d, len(_cands))
+            asyncio.create_task(_jev_shadow_task())
+
     # Exact-response caching is opt-in-by-safety: deterministic, non-streaming,
     # tool-free requests only. We peek before payment so cached responses can be
     # quoted at the discounted cache-hit price, then consume the hit only after
@@ -1471,6 +1526,8 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
             "X-Surp-Cache": "MISS" if cacheable else "BYPASS",
             "X-Surp-Routing": routing_reason,
         }
+        if jev_pick_block is not None:
+            headers["X-Surp-Jev"] = json.dumps(jev_pick_block, separators=(",", ":"))
         tokens_in = tokens_out = 0
         if cacheable and upstream.status == 200:
             try:
@@ -1520,6 +1577,8 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
                          provider=str(winner.get("provider", "")) if winner else "",
                          default=None)
         return web.Response(body=upstream_body, status=upstream.status, headers=headers)
+    if jev_pick_block is not None:
+        base_headers["X-Surp-Jev"] = json.dumps(jev_pick_block, separators=(",", ":"))
 
     out = web.StreamResponse(status=upstream.status, headers={
         k: v for k, v in upstream.headers.items()
@@ -1714,6 +1773,11 @@ async def api_combo_history(request: web.Request) -> web.Response:
     hours = min(int(request.query.get("hours", 24)), 168)
     data = st.combo_history(combo, hours)
     return web.json_response({"combo": combo, "hours": hours, "points": data})
+
+
+async def api_jev_stats(request: web.Request) -> web.Response:
+    """GET /api/jev/stats — Jev routing telemetry. Separate from settlement accounting."""
+    return web.json_response(jev_router.read_stats())
 
 
 async def api_global_stats(request: web.Request) -> web.Response:
@@ -5374,6 +5438,7 @@ def build_app() -> web.Application:
     app.router.add_get("/api/models", api_models_catalog)
     app.router.add_get("/api/price-compare", api_price_compare)
     app.router.add_get("/api/stats", api_global_stats)
+    app.router.add_get("/api/jev/stats", api_jev_stats)
     app.router.add_get("/api/rewards", api_reward_balance)
     app.router.add_get("/api/health", api_health)
     app.router.add_post("/api/keys/create", api_keys_create)
