@@ -1391,7 +1391,10 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
             if ua_key is None:
                 return web.json_response({"error": "invalid API key"}, status=401)
             # Budget check: does this key have room for this cost?
-            if not ua.check_budget(ua_key["key_id"], required_microcents):
+            # (ua.check_budget expects cents, NOT microcents — passing the
+            # microcent value inflated a 1¢ charge to 10,000¢ and 402'd
+            # every user-account API key request.)
+            if not ua.check_budget(ua_key["key_id"], int(cents)):
                 return web.json_response({
                     "error": "budget exceeded for this API key",
                     "key_id": ua_key["key_id"],

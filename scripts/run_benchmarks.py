@@ -9,6 +9,9 @@ import asyncio
 import os
 import sys
 
+# Make the repo root importable when invoked as `python3 scripts/run_benchmarks.py`
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, _REPO_ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import benchmark_runner as br
 
@@ -32,8 +35,20 @@ async def main() -> None:
             with open("/tmp/bench_key") as f:
                 api_key = f.read().strip()
         except FileNotFoundError:
-            print("No API key available — skipping benchmark run.")
-            return
+            pass
+    if not api_key:
+        # Fall back to the server env file (survives /tmp cleanup on reboot).
+        try:
+            with open("/etc/surp/surp.env") as f:
+                for line in f:
+                    if line.startswith("SURP_BENCH_KEY="):
+                        api_key = line.split("=", 1)[1].strip().strip('"').strip("'")
+                        break
+        except FileNotFoundError:
+            pass
+    if not api_key:
+        print("No API key available — skipping benchmark run.")
+        return
 
     for model in BENCH_MODELS:
         try:
