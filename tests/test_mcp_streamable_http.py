@@ -24,6 +24,9 @@ class FakePayload:
     def at_eof(self) -> bool:
         return True
 
+    def set_read_chunk_size(self, n: int) -> None:
+        pass
+
 
 def post(body, auth=None):
     headers = {"Content-Type": "application/json",
