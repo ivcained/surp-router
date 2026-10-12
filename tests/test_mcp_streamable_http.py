@@ -14,11 +14,18 @@ from aiohttp.test_utils import make_mocked_request  # noqa: E402
 class FakePayload:
     def __init__(self, data: bytes):
         self._data = data
+        self._served = False
 
     async def read(self, n: int = -1) -> bytes:
+        if self._served:
+            return b""
+        self._served = True
         return self._data if n < 0 else self._data[:n]
 
     async def readany(self) -> bytes:
+        if self._served:
+            return b""
+        self._served = True
         return self._data
 
     def at_eof(self) -> bool:
@@ -76,7 +83,7 @@ def test_initialized_notification_returns_202_without_body():
         "jsonrpc": "2.0", "method": "notifications/initialized",
     })))
     assert response.status == 202
-    assert response.body == b""
+    assert response.body in (None, b"")  # body renders empty on prepare()
 
 
 def test_ping_returns_empty_result():

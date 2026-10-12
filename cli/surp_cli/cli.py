@@ -124,19 +124,26 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--base-url", default=os.environ.get("SURP_BASE_URL", DEFAULT_BASE_URL),
                         help="gateway base URL (default: %(default)s)")
     parser.add_argument("--json", action="store_true", help="print raw JSON responses")
+    # same flags usable after the subcommand for ergonomics
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument("--base-url", default=argparse.SUPPRESS,
+                        help=argparse.SUPPRESS)
+    common.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
     sub = parser.add_subparsers(dest="command", required=True)
 
-    sub.add_parser("models", help="list available routes and models (GET /v1/models)").set_defaults(func=cmd_models)
+    sub.add_parser("models", parents=[common],
+                   help="list available routes and models (GET /v1/models)").set_defaults(func=cmd_models)
 
-    p = sub.add_parser("prices", help="compare live Surp prices (GET /api/price-compare)")
+    p = sub.add_parser("prices", parents=[common], help="compare live Surp prices (GET /api/price-compare)")
     p.add_argument("--query", default="", help="optional model or route search text")
     p.set_defaults(func=cmd_prices)
 
-    sub.add_parser("status", help="gateway and upstream health (GET /api/health)").set_defaults(func=cmd_status)
+    sub.add_parser("status", parents=[common],
+                   help="gateway and upstream health (GET /api/health)").set_defaults(func=cmd_status)
 
-    p = sub.add_parser("key", help="manage API keys")
+    p = sub.add_parser("key", parents=[common], help="manage API keys")
     key_sub = p.add_subparsers(dest="key_command", required=True)
-    pf = key_sub.add_parser("free", help="create a self-serve free-tier key (POST /api/free-key)")
+    pf = key_sub.add_parser("free", parents=[common], help="create a self-serve free-tier key (POST /api/free-key)")
     pf.add_argument("--label", default="surp-cli")
     pf.add_argument("--requests", type=int, default=1000, help="elevated request budget (max 10000)")
     pf.add_argument("--tokens", type=int, default=200000, help="elevated token budget (max 2000000)")
