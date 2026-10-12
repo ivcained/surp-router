@@ -52,13 +52,26 @@ POOL_MARKETS = [
 
 
 class FakeJevResponse:
-    def __init__(self, choice, confidence):
+    def __init__(self, choice, confidence, probabilities=None):
         self.choices = {
-            "route": types.SimpleNamespace(choice=choice, confidence=confidence)
+            "route": types.SimpleNamespace(
+                choice=choice,
+                confidence=confidence,
+                probabilities=probabilities or {
+                    "alpha-chat": 0.05,
+                    "beta-chat": 0.90,
+                    "gamma-chat": 0.05,
+                },
+            )
+        }
+        self.scores = {
+            "task_complexity": types.SimpleNamespace(score=5.0, confidence=0.8),
+            "reasoning_required": types.SimpleNamespace(score=6.0, confidence=0.75),
+            "tool_complexity": types.SimpleNamespace(score=2.0, confidence=0.9),
         }
 
 
-def _fake_client_factory(choice="beta-chat", confidence=0.9, delay=0.0, exc=None):
+def _fake_client_factory(choice="beta-chat", confidence=0.9, delay=0.0, exc=None, capture=None):
     """Return a fake AsyncTypeSafeClient class with controllable behavior."""
 
     class FakeClient:
@@ -69,6 +82,9 @@ def _fake_client_factory(choice="beta-chat", confidence=0.9, delay=0.0, exc=None
             return False
 
         async def system_one(self, state=None, questions=None):
+            if capture is not None:
+                capture["state"] = state
+                capture["questions"] = questions
             if exc is not None:
                 raise exc
             if delay:
@@ -184,6 +200,98 @@ def test_jev_disabled_without_key(monkeypatch):
     monkeypatch.delenv("JEV_API_KEY", raising=False)
     jr = jev_router.JevRouter.from_env()
     assert jr.enabled is False
+
+
+def test_build_state_includes_bounded_redacted_task_and_context():
+    import jev_router
+
+    state = jev_router.build_state(
+        payload={
+            "messages": [
+                {"role": "system", "content": "internal system policy"},
+                {"role": "user", "content": "Fix billing bug. Email me at me@example.com; key sk-test-12345678901234567890"},
+            ],
+            "max_tokens": 700,
+            "tools": [{"type": "function", "function": {"name": "charge_card"}}],
+            "surp_context_tokens": 50000,
+            "surp_task_descriptor": "Fix billing bug. Email me at me@example.com; key sk-test-12345678901234567890",
+        },
+        pool_size=3,
+        model_class="coding",
+        cache_eligible=False,
+    )
+    blob = json.dumps(state)
+    assert "internal system policy" not in blob
+    assert "me@example.com" not in blob
+    assert "sk-test" not in blob
+    assert "[email]" in state["request"]
+    assert "[secret]" in state["request"]
+    assert len(state["request"]) <= jev_router.MAX_TASK_CHARS
+    assert state["context_tokens"] == 50000
+    assert state["tool_count"] == 1
+
+
+def test_jev_request_asks_complexity_reasoning_tools_and_exact_model():
+    import jev_router
+
+    capture = {}
+    cands = aa_router.annotate(cr.pool_for("value", POOL_MARKETS))
+    jr = jev_router.JevRouter(
+        client_factory=_fake_client_factory("beta-chat", 0.9, capture=capture),
+        timeout_s=0.6,
+        min_confidence=0.55,
+    )
+    d = asyncio.run(jr.decide(cands, {"request": "Fix the parser", "context_tokens": 4000}))
+    assert d.ok is True
+    assert set(capture["questions"]) == {
+        "task_complexity", "reasoning_required", "tool_complexity", "route"
+    }
+    assert d.metrics == {
+        "task_complexity": pytest.approx(5.0 / 9.0),
+        "reasoning_required": pytest.approx(6.0 / 9.0),
+        "tool_complexity": pytest.approx(2.0 / 9.0),
+    }
+    assert d.probabilities["beta-chat"] == pytest.approx(0.9)
+
+
+def test_low_confidence_never_changes_the_aa_pick():
+    import jev_router
+
+    d = jev_router.apply_policy(
+        jev_router.JevDecision(ok=True, choice="alpha-chat", confidence=0.2),
+        current_model="beta-chat",
+        current_quality=80.0,
+        candidate_quality=40.0,
+        context_tokens=0,
+    )
+    assert d.ok is False
+    assert d.choice == "beta-chat"
+    assert d.fallback_reason == "low_confidence_hold"
+
+
+def test_large_context_blocks_quality_downgrade():
+    import jev_router
+
+    d = jev_router.apply_policy(
+        jev_router.JevDecision(ok=True, choice="alpha-chat", confidence=0.95),
+        current_model="beta-chat",
+        current_quality=80.0,
+        candidate_quality=40.0,
+        context_tokens=80000,
+    )
+    assert d.ok is False
+    assert d.choice == "beta-chat"
+    assert d.fallback_reason == "cache_rebuild_guard"
+
+
+def test_jev_router_accepts_jev_api_key_alias(monkeypatch):
+    import jev_router
+
+    monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
+    monkeypatch.setenv("JEV_API_KEY", "x" * 40)
+    monkeypatch.setattr(jev_router, "_sdk_available", lambda: True)
+    jr = jev_router.JevRouter.from_env()
+    assert jr.enabled is True
 
 
 # ── combo alias ──────────────────────────────────────────────────────────────

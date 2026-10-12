@@ -25,14 +25,98 @@ import asyncio
 import json
 import logging
 import os
+import re
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Optional
 
 log = logging.getLogger("surp.jev")
 
 LOG_PATH = Path(__file__).parent / "logs" / "jev-routing.jsonl"
+MAX_TASK_CHARS = 1200
+DEFAULT_CACHE_GUARD_TOKENS = 48_000
+_SECRET_RE = re.compile(
+    r"(?i)(?:sk|pk|api|key|token|bearer|secret)[-_a-z0-9]{8,}|"
+    r"\b[A-Za-z0-9_-]{32,}\b"
+)
+_EMAIL_RE = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.I)
+_URL_CREDENTIAL_RE = re.compile(r"(?i)(https?://)[^/@\s:]+:[^/@\s]+@")
+
+
+def _sdk_available() -> bool:
+    try:
+        import typesafe_sdk  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+def _redact_task(text: str) -> str:
+    text = _URL_CREDENTIAL_RE.sub(r"\1[credentials]@", text)
+    text = _EMAIL_RE.sub("[email]", text)
+    text = _SECRET_RE.sub("[secret]", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[:MAX_TASK_CHARS]
+
+
+def _last_user_text(payload: dict[str, Any]) -> str:
+    for message in reversed(payload.get("messages") or []):
+        if not isinstance(message, dict) or message.get("role") != "user":
+            continue
+        content = message.get("content")
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            return " ".join(
+                str(part.get("text", ""))
+                for part in content
+                if isinstance(part, dict) and part.get("type") in ("text", "input_text")
+            )
+    return ""
+
+
+def _normalized_score(answer: Any) -> float:
+    try:
+        return max(0.0, min(1.0, float(answer.score) / 9.0))
+    except (AttributeError, TypeError, ValueError):
+        return 0.0
+
+
+def _quality_value(value: Any) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def apply_policy(
+    decision: "JevDecision",
+    *,
+    current_model: str,
+    current_quality: float,
+    candidate_quality: float,
+    context_tokens: int,
+    min_confidence: float = 0.55,
+    cache_guard_tokens: int = DEFAULT_CACHE_GUARD_TOKENS,
+) -> "JevDecision":
+    """Apply conservative Surp policy after Jev returns an exact candidate."""
+    if not decision.ok:
+        return decision
+    if decision.confidence < min_confidence:
+        decision.ok = False
+        decision.choice = current_model
+        decision.fallback_reason = "low_confidence_hold"
+        return decision
+    if (
+        context_tokens >= cache_guard_tokens
+        and decision.choice != current_model
+        and candidate_quality < current_quality
+    ):
+        decision.ok = False
+        decision.choice = current_model
+        decision.fallback_reason = "cache_rebuild_guard"
+    return decision
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -72,6 +156,7 @@ class JevDecision:
     latency_ms: float = 0.0
     fallback_reason: Optional[str] = None
     probabilities: Optional[dict] = None
+    metrics: dict[str, float] = field(default_factory=dict)
 
 
 def build_state(
@@ -95,11 +180,22 @@ def build_state(
         est_tokens = int(est_tokens)
     except (TypeError, ValueError):
         est_tokens = 1500
+    context_tokens = payload.get("surp_context_tokens") or payload.get("context_tokens") or 0
+    try:
+        context_tokens = max(0, int(context_tokens))
+    except (TypeError, ValueError):
+        context_tokens = 0
+    tools = payload.get("tools") or []
     return {
+        # Preserve Surp's privacy contract: never infer this from messages.
+        # Clients may opt in with a short non-sensitive task descriptor.
+        "request": _redact_task(str(payload.get("surp_task_descriptor") or "")),
         "model_class": model_class,
         "est_tokens": est_tokens,
+        "context_tokens": context_tokens,
         "has_images": has_images,
-        "has_tools": bool(payload.get("tools")),
+        "has_tools": bool(tools),
+        "tool_count": len(tools) if isinstance(tools, list) else 1,
         "cache_eligible": bool(cache_eligible),
         "pool_size": pool_size,
     }
@@ -138,18 +234,19 @@ class JevRouter:
 
     @classmethod
     def from_env(cls) -> "JevRouter":
-        key = (os.environ.get("TYPESAFE_API_KEY") or "").strip()
+        key = (os.environ.get("TYPESAFE_API_KEY") or os.environ.get("JEV_API_KEY") or "").strip()
         if not key:
             return cls(enabled=False)
-        try:
-            from typesafe_sdk import AsyncTypeSafeClient  # noqa: F401
-        except ImportError:
+        if not _sdk_available():
             log.warning("typesafe-sdk not installed; Jev routing disabled")
             return cls(enabled=False)
 
         def factory():
             from typesafe_sdk import AsyncTypeSafeClient
-            return AsyncTypeSafeClient()
+            return AsyncTypeSafeClient(
+                api_key=key,
+                timeout=_env_int("JEV_TIMEOUT_MS", 600) / 1000.0,
+            )
 
         return cls(
             client_factory=factory,
@@ -167,22 +264,47 @@ class JevRouter:
 
         t0 = time.monotonic()
         try:
-            from typesafe_sdk import Choice
+            from typesafe_sdk import Choice, Score
         except ImportError:
-            Choice = None
+            Choice = Score = None
+
+        score_levels = [
+            "trivial: typo, formatting, lookup, or direct transformation",
+            "very small and local",
+            "small task with one clear step",
+            "moderate task with a few connected steps",
+            "multi-step task requiring judgment",
+            "complex task across components",
+            "hard task with ambiguity or several constraints",
+            "very hard architecture, diagnosis, or research task",
+            "expert task with high consequence trade-offs",
+            "frontier task requiring the strongest available reasoning",
+        ]
 
         criteria = _criteria_for(candidates, self.max_candidates)
         try:
-            if Choice is not None:
+            if Choice is not None and Score is not None:
                 questions = {
+                    "task_complexity": Score(
+                        instructions="Rate the inherent complexity of the user's task.",
+                        criteria=score_levels,
+                    ),
+                    "reasoning_required": Score(
+                        instructions="Rate how much careful reasoning the task requires.",
+                        criteria=score_levels,
+                    ),
+                    "tool_complexity": Score(
+                        instructions="Rate the complexity of tool use or external actions required.",
+                        criteria=score_levels,
+                    ),
                     "route": Choice(
                         instructions=(
-                            "Pick the best model for this request, balancing quality, "
-                            "speed, and price for the request's class. Cheaper is better "
-                            "when quality is comparable."
+                            "Pick exactly one available model for this request. Balance task fit, "
+                            "quality, speed, and price. Prefer cheaper models only when expected "
+                            "answer quality is comparable. Never invent a model."
                         ),
                         criteria=criteria,
-                    )
+                    ),
                 }
                 coro = self._call(questions, state)
             else:
@@ -200,17 +322,21 @@ class JevRouter:
         choice = resp.choices["route"].choice
         confidence = float(resp.choices["route"].confidence or 0.0)
         probs = getattr(resp.choices["route"], "probabilities", None)
+        metrics = {
+            name: _normalized_score(getattr(resp, "scores", {}).get(name))
+            for name in ("task_complexity", "reasoning_required", "tool_complexity")
+        }
 
         if choice not in criteria:
             return JevDecision(ok=False, choice=choice, confidence=confidence,
                                latency_ms=latency_ms, fallback_reason="invalid_choice",
-                               probabilities=probs)
+                               probabilities=probs, metrics=metrics)
         if confidence < self.min_confidence:
             return JevDecision(ok=False, choice=choice, confidence=confidence,
                                latency_ms=latency_ms, fallback_reason="low_confidence",
-                               probabilities=probs)
+                               probabilities=probs, metrics=metrics)
         return JevDecision(ok=True, choice=choice, confidence=confidence,
-                           latency_ms=latency_ms, probabilities=probs)
+                           latency_ms=latency_ms, probabilities=probs, metrics=metrics)
 
     async def _call(self, questions: Any, state: dict[str, Any]) -> Any:
         # Hold one client across decisions: opening an HTTP/2 session per
@@ -247,6 +373,8 @@ def log_decision(
             "confidence": decision.confidence,
             "latency_ms": round(decision.latency_ms, 1),
             "fallback_reason": decision.fallback_reason,
+            "probabilities": decision.probabilities,
+            "factors": decision.metrics,
             "agree": decision.ok and decision.choice == aa_pick,
             "pool_size": pool_size,
         }

@@ -3,3 +3,4 @@ web3
 x402
 PyJWT[crypto]>=2.13.0
 cryptography>=50.0.0
+typesafe-sdk==0.7.2

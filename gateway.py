@@ -141,6 +141,7 @@ _PRICE_COMPARE_LOCK = asyncio.Lock()
 # Retained references for fire-and-forget shadow tasks so the event loop's GC
 # cannot collect them mid-flight (review finding C-fire-and-forget).
 _JEV_SHADOW_TASKS: set = set()
+_JEV_ROUTER = jev_router.JevRouter.from_env()
 STICKY_TTL_SECONDS = int(os.environ.get("SURP_STICKY_TTL_SECONDS", "300"))
 STICKY_TOLERANCE_PCT = float(os.environ.get("SURP_STICKY_TOLERANCE_PCT", "30"))
 _RESPONSE_CACHE = ct.ResponseCache(CACHE_DB, CACHE_TTL_SECONDS, CACHE_MAX_ENTRIES)
@@ -1317,7 +1318,7 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
     # Shadow mode: Jev's would-be pick is logged for telemetry; the served
     # model never changes. Both are off unless JEV_LIVE / JEV_SHADOW are set.
     jev_pick_block = None
-    _jev = jev_router.JevRouter.from_env()
+    _jev = _JEV_ROUTER
     _jev_pool = routing_pool if routing_pool else ([{"model": resolved_model}] if resolved_model else [])
     if _jev.enabled and (jev_router.live_enabled() or jev_router.shadow_enabled()):
         _cands = aa_router.annotate(_jev_pool)
@@ -1329,6 +1330,24 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
         )
         if combo == "jev" and jev_router.live_enabled():
             decision = await _jev.decide(_cands, _state)
+            if decision.ok:
+                _candidate = next((c for c in _cands if c.model == decision.choice), None)
+                _current = next((c for c in _cands if c.model == resolved_model), None)
+                decision = jev_router.apply_policy(
+                    decision,
+                    current_model=resolved_model,
+                    current_quality=jev_router._quality_value(
+                        getattr(_current, "intelligence", 0.0) if _current else 0.0
+                    ),
+                    candidate_quality=jev_router._quality_value(
+                        getattr(_candidate, "intelligence", 0.0) if _candidate else 0.0
+                    ),
+                    context_tokens=int(_state.get("context_tokens") or 0),
+                    min_confidence=_jev.min_confidence,
+                    cache_guard_tokens=jev_router._env_int(
+                        "JEV_CACHE_GUARD_TOKENS", jev_router.DEFAULT_CACHE_GUARD_TOKENS
+                    ),
+                )
             jev_router.log_decision("live", combo, resolved_model, decision, len(_cands))
             if decision.ok:
                 _jw = next((m for m in _jev_pool if m.get("model") == decision.choice), None)
@@ -1345,6 +1364,8 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
                             "pick": decision.choice,
                             "confidence": decision.confidence,
                             "latency_ms": round(decision.latency_ms, 1),
+                            "probabilities": decision.probabilities,
+                            "factors": decision.metrics,
                             "fallback": False,
                         }
                     else:
@@ -1356,6 +1377,8 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
                     "pick": None,
                     "confidence": decision.confidence,
                     "latency_ms": round(decision.latency_ms, 1),
+                    "probabilities": decision.probabilities,
+                    "factors": decision.metrics,
                     "fallback": True,
                     "fallback_reason": decision.fallback_reason,
                 }
