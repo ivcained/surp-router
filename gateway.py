@@ -550,6 +550,10 @@ PAGE_META = {
         "title": "Verified LLM Performance — Real Output TPS, TTFT & Throughput per Dollar | surp.ivc.lol",
         "desc": "Independently verified LLM generation throughput: output tokens/second, time-to-first-token, and throughput-per-dollar for every model on surp. No vendor claims — only measured data.",
     },
+    "/updates/jev-routing": {
+        "title": "Jev AI Router for Intelligent LLM Routing | Surp",
+        "desc": "See how Surp uses Jev to score LLM candidates by task, reasoning, and tool fit, with price, cache, confidence, and fail-open routing guards.",
+    },
 }
 
 JSONLD_ORG = {
@@ -670,58 +674,124 @@ async def page_about(request: web.Request) -> web.Response:
 
 
 async def page_updates_jev(request: web.Request) -> web.Response:
-    content = """<h1>Jev routing: a decision model picks your route</h1>
-<p class="dim">update · 2026-09-29</p>
+    import json as _json
 
-<h2>What shipped</h2>
-<p>Surp now integrates <strong>Jev</strong>, TypeSafe's System One decision model, as an optional routing brain. Instead of a static quality/cost table alone, a purpose-built model scores each candidate route per request and picks one — with a confidence score and fail-open fallback to the existing router.</p>
-<p>It ships in two stages:</p>
-<ol>
-<li><strong>Shadow mode</strong> (live now): Jev scores routed requests against the same candidate list the router uses and we log what it would have picked. No traffic changes.</li>
-<li><strong>Opt-in preset <code>surp/jev</code></strong> (live now): the route follows Jev's pick when confidence clears a threshold and the pick is not pricier than the router's. Any timeout, error, low confidence, or price guard falls back to the existing router.</li>
-</ol>
-<p>Hermes-side integration also landed: the <code>hermes-jev-skills</code> plugin set gives the agent Jev-backed model routing, memory reranking, compaction selection, and skill selection in shadow mode.</p>
+    faq = [
+        ("What is Jev routing?", "Jev routing is Surp's decision layer for selecting among the exact, live LLM candidates available for a request. Jev is TypeSafe System One. It evaluates the supplied candidates but cannot invent a model, add an unlisted provider, or route outside Surp's candidate set."),
+        ("Does Jev receive raw user messages?", "No. Jev receives request metadata and may receive an optional bounded, redacted surp_task_descriptor. It never receives raw prompt messages. The descriptor should contain only the limited, non-sensitive task context needed for routing."),
+        ("How does Jev evaluate an LLM request?", "Jev returns independent task-complexity, reasoning, and tool-use scores together with an exact model choice in one request. Surp then applies deterministic confidence, price, candidate, and cache rules before accepting the choice."),
+        ("What happens when Jev has low confidence or is unavailable?", "Surp keeps the route it already selected. Timeouts, client errors, invalid model IDs, and low-confidence answers do not block inference. This is fail-open routing: Jev can improve a selection, but inference does not depend on Jev."),
+        ("Does Jev routing change Surp's x402 payment flow?", "No. Jev changes model selection, not payment handling. Surp's x402 challenges, prepaid API keys, quotes, settlement, and accounting keep the same behavior. The price guard also prevents a Jev choice from increasing the amount already quoted."),
+    ]
+    article_schema = {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "How the Jev AI Router Selects an LLM",
+        "description": PAGE_META["/updates/jev-routing"]["desc"],
+        "datePublished": "2026-09-29",
+        "dateModified": "2026-10-12",
+        "mainEntityOfPage": "https://surp.ivc.lol/updates/jev-routing",
+        "author": {"@type": "Organization", "name": "Surp", "url": "https://surp.ivc.lol"},
+        "publisher": {"@type": "Organization", "name": "Surp", "url": "https://surp.ivc.lol"},
+        "about": {"@type": "DefinedTerm", "name": "Jev routing", "description": "TypeSafe System One used for bounded LLM routing decisions in Surp."},
+    }
+    faq_schema = {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+            {"@type": "Question", "name": question, "acceptedAnswer": {"@type": "Answer", "text": answer}}
+            for question, answer in faq
+        ],
+    }
+    content = """<article>
+<h1>How the Jev AI Router Selects an LLM</h1>
+<p class="dim">Product update · published September 29, 2026 · updated October 12, 2026</p>
+<p class="sub">Surp now uses Jev, TypeSafe System One, as an opt-in decision model for intelligent LLM routing. The new router scores the task, reasons over exact live candidates, and accepts a model switch only when Surp's own safety and price rules allow it.</p>
 
-<h2>Why a decision model instead of a routing table</h2>
-<p>A static table maps request class to route. It cannot weigh latency, price, quality, and cache state against each other per request. Jev evaluates the request envelope — token estimate, modality, route health, cache state — and scores each candidate. The decision is a function, not a lookup.</p>
+<p>Choosing an LLM by a fixed table works until two requests need very different things. A short extraction task does not need the same model as a difficult debugging session with tools and a large context. Price also moves across the live Surplus marketplace, so a model name alone does not tell the router which fill makes sense now.</p>
+<p>The <code>surp/jev</code> route adds a small typed decision before Surp quotes and dispatches the request. We adapted the policy ideas in <a href="https://github.com/gargpratyush/jev-router" rel="noopener">gargpratyush/jev-router</a> to Surp's API architecture. The original project routes Claude Code and Codex sessions. Surp has different constraints: a live candidate market, per-request pricing, x402 settlement, prepaid keys, prompt privacy, and a rule that the model choice cannot raise an amount already quoted.</p>
 
-<h2>How it works</h2>
+<aside class="card"><h2>Jev routing in 53 words</h2><p>Jev routing in Surp is a fail-open decision layer. Jev is TypeSafe System One and selects only from exact, live candidates supplied by Surp. It uses request metadata and an optional bounded, redacted <code>surp_task_descriptor</code>, never raw messages, while independently scoring complexity, reasoning, and tool needs in one request and applying a price guard.</p></aside>
+
+<h2>One request returns four typed judgments</h2>
+<p>Surp sends one <a href="https://docs.typesafe.ai/sdk/python" rel="noopener">TypeSafe System One</a> request for each Jev routing decision. That request asks four questions together:</p>
 <ul>
-<li><strong>Bounded candidate list.</strong> Jev sees the same pool the router resolved for your combo. No arbitrary endpoints, no free-form model names.</li>
-<li><strong>No prompt content.</strong> Jev receives metadata only: token estimate, modality flags, route health, cache eligibility. Your prompt never leaves the router.</li>
-<li><strong>Confidence threshold.</strong> Each pick carries a confidence score. Below the threshold, the existing router takes over.</li>
-<li><strong>Price guard.</strong> Jev's pick may not cost more than the router's pick. A pricier pick falls back, never re-quotes.</li>
-<li><strong>Fail-open.</strong> Timeout (600ms), error, or low confidence → the existing router serves the request. Availability never depends on Jev.</li>
+<li>How complex is the task?</li>
+<li>How much reasoning does it require?</li>
+<li>How complex is the expected tool use?</li>
+<li>Which exact candidate model should handle it?</li>
 </ul>
+<p>The first three answers are ordered scores. The fourth is a typed Choice whose keys are the live model IDs Surp supplied. The response also includes confidence and a probability for each candidate. Surp records those factors separately from payment and settlement data, then applies ordinary code rules before changing the route.</p>
+<p>One typed call keeps the decision coherent. Four separate classifiers would add network work and could disagree because each saw a different decision frame. Surp instead gets one bounded result under one deadline.</p>
 
-<h2>Shadow telemetry</h2>
-<p>For every routed request in shadow mode we log the route Jev would have picked, its confidence, the route actually taken, and whether they agree. Public counters live at <a href="/api/jev/stats"><code>GET /api/jev/stats</code></a> — decision totals, fallback rate, agreement rate, and p50 decision latency. We will publish the agreement rate once there is enough data to mean something.</p>
+<h2>Exact model IDs replace abstract tiers</h2>
+<p>The Claude and Codex router maps Jev's answer onto broad tiers. Surp already has an eligible pool resolved from the live market, so another tier-to-model translation would discard useful price and quality information. We send exact candidate IDs instead.</p>
+<p>Each option describes the current Surp price and, when present, its intelligence score, throughput estimate, and discount from list price. Jev must choose from those options. An invented, stale, or ineligible ID fails validation and the original Surp route stays in place. The list is capped at 12 candidates by default.</p>
 
-<h2>How to try it</h2>
-<p>Set your model to <code>surp/jev</code>:</p>
-<pre>curl https://surp.ivc.lol/v1/chat/completions \\
+<h2>No raw prompt messages enter the Jev decision</h2>
+<p>Surp does not copy <code>messages</code>, system instructions, source code, or tool definitions into the Jev request. The default state contains routing metadata: requested output tokens, estimated context size, model class, image and tool flags, tool count, cache eligibility, and candidate-pool size.</p>
+<p>A client can optionally send <code>surp_task_descriptor</code>, such as <code>Review a Python patch for concurrency bugs</code>. Surp never derives this field from the prompt. It removes common email, credential, URL-userinfo, token, and long-secret patterns, normalizes whitespace, and caps the result at 1,200 characters. Keep private records, credentials, and prompt text out of the descriptor.</p>
+
+<h2>Four guards keep Jev inside Surp's rules</h2>
+<p>A Jev answer is advice. Surp has the final say.</p>
+<ol>
+<li><strong>Candidate guard.</strong> The chosen model must appear in the exact pool supplied to Jev.</li>
+<li><strong>Confidence guard.</strong> The default confidence floor is <code>0.55</code>. Below it, Surp holds the original route.</li>
+<li><strong>Cache guard.</strong> At 48,000 context tokens or more, Surp blocks a switch to a lower-quality model. Rebuilding a large provider prompt cache can erase the saving from a cheaper model. Read more about <a href="/cache">cache-aware LLM routing</a> and the <a href="/auction">cache-affinity auction</a>.</li>
+<li><strong>Price guard.</strong> Jev's model cannot cost more than the baseline model already priced for the request. Surp falls back instead of silently increasing the charge or issuing a second quote.</li>
+</ol>
+<p>Timeouts, missing credentials, SDK errors, invalid choices, and low confidence all lead to the same result: the existing router serves the request. Public routing counters are available at <a href="/api/jev/stats"><code>GET /api/jev/stats</code></a>. They are decision telemetry, not x402 settlement or API-key accounting.</p>
+
+<h2>Connection reuse keeps the decision path small</h2>
+<p>The gateway creates one async TypeSafe client at startup and reuses its connection pool. Opening a new HTTP and TLS connection for every decision would waste much of the routing budget before Jev evaluated a candidate. The SDK timeout and Surp's outer async deadline both protect the request path.</p>
+<p>This shared client was one of the practical changes that mattered when moving the policy from a local coding proxy into a public API gateway. The router can be clever only if it stays out of the way when it is slow.</p>
+
+<h2>How to call surp/jev</h2>
+<p>The endpoint stays OpenAI-compatible. Use a prepaid Surp key or complete the same x402 flow documented in the <a href="/docs">Surp API guide</a>.</p>
+<pre>curl --fail-with-body https://surp.ivc.lol/v1/chat/completions \\
   -H "Content-Type: application/json" \\
-  -H "Authorization: Bearer YOUR_SURP_KEY" \\
+  -H "Authorization: Bearer $SURP_API_KEY" \\
   -d '{
     "model": "surp/jev",
-    "messages": [{"role": "user", "content": "Hello"}]
+    "messages": [{
+      "role": "user",
+      "content": "Review this retry strategy and identify failure modes."
+    }],
+    "surp_task_descriptor": "Review a backend retry strategy for correctness",
+    "max_tokens": 800
   }'</pre>
-<p>The x402 payment flow and prepaid API keys work exactly as before. The preset is opt-in; <code>surp/value</code> and friends stay static. Paid responses carry an <code>X-Surp-Jev</code> header with the pick, confidence, decision latency, and whether the fallback fired.</p>
+<p>The descriptor is optional. Existing presets keep their current behavior unless you select <code>surp/jev</code>. For evidence on model speed and cost, use the <a href="/performance">measured LLM performance board</a>.</p>
 
-<h2>What is next</h2>
+<h2>Payment and settlement do not change</h2>
+<p>Jev does not authorize payments, settle USDC, spend a prepaid balance, or alter accounting. Surp still quotes the selected model, returns the same x402 challenge when payment is required, verifies the same per-request EIP-3009 authorization on Base, and dispatches only after the existing payment checks pass.</p>
+<p>This separation is deliberate. A routing model can recommend a fill. It does not get the keys to the cashier.</p>
+
+<h2>Frequently asked questions</h2>
+<h3>What is Jev routing?</h3>
+<p>Jev routing is Surp's decision layer for selecting among the exact, live LLM candidates available for a request. Jev is TypeSafe System One. It evaluates the supplied candidates but cannot invent a model, add an unlisted provider, or route outside Surp's candidate set.</p>
+<h3>Does Jev receive raw user messages?</h3>
+<p>No. Jev receives request metadata and may receive an optional bounded, redacted <code>surp_task_descriptor</code>. It never receives raw prompt messages. The descriptor should contain only the limited, non-sensitive task context needed for routing.</p>
+<h3>How does Jev evaluate an LLM request?</h3>
+<p>Jev returns independent task-complexity, reasoning, and tool-use scores together with an exact model choice in one request. Surp then applies deterministic confidence, price, candidate, and cache rules before accepting the choice.</p>
+<h3>What happens when Jev has low confidence or is unavailable?</h3>
+<p>Surp keeps the route it already selected. Timeouts, client errors, invalid model IDs, and low-confidence answers do not block inference. This is fail-open routing: Jev can improve a selection, but inference does not depend on Jev.</p>
+<h3>Does Jev routing change Surp's x402 payment flow?</h3>
+<p>No. Jev changes model selection, not payment handling. Surp's x402 challenges, prepaid API keys, quotes, settlement, and accounting keep the same behavior. The price guard also prevents a Jev choice from increasing the amount already quoted.</p>
+
+<h2>Source and related pages</h2>
 <ul>
-<li>Shadow data collection before any decision about default status</li>
-<li>Agreement-rate reporting on <a href="/api/jev/stats">/api/jev/stats</a></li>
-<li>Hermes plugin v0.3.0 with Jev-aware tooling, and a catalog re-pin</li>
+<li><a href="https://github.com/gargpratyush/jev-router" rel="noopener">gargpratyush/jev-router</a>, the Claude Code and Codex project whose tested policy ideas informed this integration</li>
+<li><a href="https://docs.typesafe.ai/primitives/choice" rel="noopener">TypeSafe Choice documentation</a> for bounded candidate selection and confidence</li>
+<li><a href="https://docs.typesafe.ai/primitives/score" rel="noopener">TypeSafe Score documentation</a> for ordered task factors</li>
+<li><a href="/features">Surp features and release history</a></li>
 </ul>
-
-<h2>See also</h2>
-<ul>
-<li><a href="https://legitclub.com/jev-typesafe-ai-field-test/">Signal Run: Jev as a bounded game director</a></li>
-<li><a href="/docs">Surp documentation</a> — x402 flow, route specs, caching behavior</li>
-<li><a href="/api/jev/stats">/api/jev/stats</a> — live routing telemetry</li>
-</ul>"""
-    return web.Response(text=_render_html(content, "/updates/jev-routing"), content_type="text/html", headers=_agent_discovery_headers())
+</article>"""
+    schemas = (
+        '<script type="application/ld+json">' + _json.dumps(article_schema) + '</script>'
+        '<script type="application/ld+json">' + _json.dumps(faq_schema) + '</script>'
+    )
+    html = _render_html(content, "/updates/jev-routing").replace("</head>", schemas + "</head>")
+    return web.Response(text=html, content_type="text/html", headers=_agent_discovery_headers())
 
 
 async def page_contact(request: web.Request) -> web.Response:
@@ -4771,7 +4841,7 @@ async def serve_robots(request: web.Request) -> web.Response:
 async def serve_sitemap(request: web.Request) -> web.Response:
     import time as _time
     lastmod = _time.strftime("%Y-%m-%d", _time.gmtime())
-    pages = ["/", "/developers", "/docs", "/connect", "/builder", "/about", "/contact", "/privacy", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/prices", "/pricing", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/versioning", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api"]
+    pages = ["/", "/developers", "/docs", "/connect", "/builder", "/about", "/contact", "/privacy", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/prices", "/pricing", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/versioning", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api", "/updates/jev-routing"]
     machine_resources = [
         "/openapi.json", "/auth.md", "/llms.txt", "/llms-full.txt", "/llms-ctx-full.txt", "/mcp.json", "/mcp", "/versioning",
         "/.well-known/mcp/server-card.json", "/.well-known/agent-card.json",
@@ -5124,7 +5194,7 @@ async def serve_openapi(request: web.Request) -> web.Response:
 async def serve_sitemap(request: web.Request) -> web.Response:
     import time as _time
     lastmod = _time.strftime("%Y-%m-%d", _time.gmtime())
-    pages = ["/", "/developers", "/docs", "/connect", "/builder", "/about", "/contact", "/privacy", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/prices", "/pricing", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/versioning", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api"]
+    pages = ["/", "/developers", "/docs", "/connect", "/builder", "/about", "/contact", "/privacy", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/prices", "/pricing", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/versioning", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api", "/updates/jev-routing"]
     machine_resources = [
         "/openapi.json", "/auth.md", "/llms.txt", "/llms-full.txt", "/llms-ctx-full.txt", "/mcp.json", "/mcp", "/versioning",
         "/.well-known/mcp/server-card.json", "/.well-known/agent-card.json",

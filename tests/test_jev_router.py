@@ -368,5 +368,28 @@ def test_jev_updates_page_registered_and_renders():
     assert "surp/jev" in body
     assert "decision model" in body.lower()
     assert "fail-open" in body.lower()
-    assert "No prompt content" in body
+    assert "No raw prompt messages" in body
     assert "/api/jev/stats" in body
+    assert "48,000" in body
+    assert "surp_task_descriptor" in body
+    assert "application/ld+json" in body
+    assert '"@type": "Article"' in body
+    assert '"@type": "FAQPage"' in body
+    assert '<link rel="canonical" href="https://surp.ivc.lol/updates/jev-routing">' in body
+    assert "What is Jev routing?" in body
+
+
+def test_jev_updates_page_has_unique_seo_meta_and_sitemap_entry():
+    import gateway
+    from aiohttp.test_utils import make_mocked_request
+
+    meta = gateway.PAGE_META["/updates/jev-routing"]
+    assert "Jev" in meta["title"]
+    assert "LLM" in meta["title"]
+    assert len(meta["title"]) <= 60
+    assert 120 <= len(meta["desc"]) <= 160
+
+    req = make_mocked_request("GET", "/sitemap.xml")
+    resp = asyncio.run(gateway.serve_sitemap(req))
+    assert resp.status == 200
+    assert "https://surp.ivc.lol/updates/jev-routing" in resp.text
