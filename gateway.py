@@ -32,6 +32,7 @@ from aiohttp import web
 import stats as st
 import combo_resolver as cr
 import jev_router
+import mcp_server
 import model_info as mi
 import landing_pages as lp
 import cache_tech as ct
@@ -653,7 +654,7 @@ async def page_home(request: web.Request) -> web.Response:
 
 
 async def page_developers(request: web.Request) -> web.Response:
-    content = """<h1>Surp Developer Portal</h1><p>Build agent and application integrations with Surp's [OI]-compatible AI inference router.</p><h2>Core developer resources</h2><ul><li><a href='/docs'>Surp API documentation</a> — authentication, endpoints, x402 payment flow, pricing, streaming, and examples.</li><li><a href='/openapi.json'>Surp OpenAPI 3.1 specification</a> — typed requests, responses, operation IDs, and error models.</li><li><a href='/auth.md'>Surp agent authentication guide</a> — prepaid Bearer keys and x402 payment signatures.</li><li><a href='/mcp.json'>Surp MCP manifest</a> and <a href='/.well-known/mcp/server-card.json'>MCP Server Card</a>.</li><li><a href='/.well-known/agent-card.json'>Surp A2A Agent Card</a> and <a href='/.well-known/agent-skills/index.json'>Agent Skills index</a>.</li><li><a href='/llms.txt'>Surp llms.txt</a> — concise instructions for agents.</li></ul><h2>Start building</h2><p>Use <code>https://surp.ivc.lol/v1</code> as the base URL. List routes with <a href='/v1/models'>GET /v1/models</a> and submit completions to <code>POST /v1/chat/completions</code>. Create a self-serve key in the <a href='/app'>Surp account app</a>, use the <a href='/free-models'>sponsored free route</a>, or fulfill the x402 payment challenge returned by a paid request.</p><h2>Operations</h2><p>See <a href='/pricing'>pricing</a>, <a href='/status'>service status</a>, <a href='/privacy'>privacy</a>, and <a href='/contact'>developer support</a>.</p>"""
+    content = """<h1>Surp Developer Portal</h1><p>Build agent and application integrations with Surp's [OI]-compatible AI inference router.</p><h2>Core developer resources</h2><ul><li><a href='/docs'>Surp API documentation</a> — authentication, endpoints, x402 payment flow, pricing, streaming, and examples.</li><li><a href='/openapi.json'>Surp OpenAPI 3.1 specification</a> — typed requests, responses, operation IDs, and error models.</li><li><a href='/auth.md'>Surp agent authentication guide</a> — prepaid Bearer keys and x402 payment signatures.</li><li><a href='/mcp.json'>Surp MCP manifest</a> and <a href='/.well-known/mcp/server-card.json'>MCP Server Card</a>.</li><li><a href='/mcp'>Surp MCP server</a> — live Streamable HTTP endpoint (initialize, tools, resources).</li><li><a href='/versioning'>API versioning &amp; deprecation policy</a> — URL versioning, Deprecation and Sunset headers.</li><li><a href='/.well-known/agent-card.json'>Surp A2A Agent Card</a> and <a href='/.well-known/agent-skills/index.json'>Agent Skills index</a>.</li><li><a href='/llms.txt'>Surp llms.txt</a> — concise instructions for agents.</li></ul><h2>Start building</h2><p>Use <code>https://surp.ivc.lol/v1</code> as the base URL. List routes with <a href='/v1/models'>GET /v1/models</a> and submit completions to <code>POST /v1/chat/completions</code>. Create a self-serve key in the <a href='/app'>Surp account app</a>, use the <a href='/free-models'>sponsored free route</a>, or fulfill the x402 payment challenge returned by a paid request.</p><h2>Sandbox &amp; free tier</h2><p>Test with zero credentials: <code>curl https://surp.ivc.lol/v1/models</code> (no auth), then call <code>surp/free</code> for sponsored zero-cost inference within the daily cap. Get a self-serve free-tier key with elevated budgets via <code>curl -X POST https://surp.ivc.lol/api/free-key -H 'Content-Type: application/json' -d '{"label":"sandbox"}'</code> — no signup, no 'contact sales'. Prepaid keys are created the same way in the <a href='/app'>account app</a>.</p><h2>Operations</h2><p>See <a href='/pricing'>pricing</a>, <a href='/status'>service status</a>, <a href='/privacy'>privacy</a>, and <a href='/contact'>developer support</a>.</p>"""
     return web.Response(text=_render_html(content, "/developers"), content_type="text/html", headers=_agent_discovery_headers())
 
 
@@ -4747,9 +4748,9 @@ async def serve_robots(request: web.Request) -> web.Response:
 async def serve_sitemap(request: web.Request) -> web.Response:
     import time as _time
     lastmod = _time.strftime("%Y-%m-%d", _time.gmtime())
-    pages = ["/", "/developers", "/docs", "/connect", "/builder", "/about", "/contact", "/privacy", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/prices", "/pricing", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api"]
+    pages = ["/", "/developers", "/docs", "/connect", "/builder", "/about", "/contact", "/privacy", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/prices", "/pricing", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/versioning", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api"]
     machine_resources = [
-        "/openapi.json", "/auth.md", "/llms.txt", "/llms-full.txt", "/llms-ctx-full.txt", "/mcp.json",
+        "/openapi.json", "/auth.md", "/llms.txt", "/llms-full.txt", "/llms-ctx-full.txt", "/mcp.json", "/mcp", "/versioning",
         "/.well-known/mcp/server-card.json", "/.well-known/agent-card.json",
         "/.well-known/agent-skills/index.json",
     ]
@@ -4901,7 +4902,9 @@ async def serve_llms_txt(request: web.Request) -> web.Response:
         "- API documentation: https://surp.ivc.lol/docs",
         "- OpenAPI 3.1: https://surp.ivc.lol/openapi.json",
         "- Authentication: https://surp.ivc.lol/auth.md",
+        "- Versioning & deprecation policy: https://surp.ivc.lol/versioning",
         "- MCP manifest: https://surp.ivc.lol/mcp.json",
+        "- MCP server (Streamable HTTP): https://surp.ivc.lol/mcp — initialize, tools/list, tools/call, resources/list, resources/read",
         "- MCP Server Card: https://surp.ivc.lol/.well-known/mcp/server-card.json",
         "- A2A Agent Card: https://surp.ivc.lol/.well-known/agent-card.json",
         "- Agent Skills: https://surp.ivc.lol/.well-known/agent-skills/index.json",
@@ -5021,6 +5024,8 @@ API responses expose `RateLimit-Limit`, `RateLimit-Remaining`, and `RateLimit-Re
 - API documentation: https://surp.ivc.lol/docs
 - OpenAPI: https://surp.ivc.lol/openapi.json
 - Authentication: https://surp.ivc.lol/auth.md
+- Versioning & deprecation policy: https://surp.ivc.lol/versioning
+- MCP server (Streamable HTTP): https://surp.ivc.lol/mcp
 - Short agent index: https://surp.ivc.lol/llms.txt
 - MCP manifest: https://surp.ivc.lol/mcp.json
 - MCP Server Card: https://surp.ivc.lol/.well-known/mcp/server-card.json
@@ -5076,14 +5081,19 @@ async def serve_openapi(request: web.Request) -> web.Response:
             "Problem": {"type": "object", "required": ["code", "message", "status"], "properties": {"type": {"type": "string", "format": "uri"}, "title": {"type": "string"}, "status": {"type": "integer"}, "code": {"type": "string"}, "message": {"type": "string"}, "resolution": {"type": "string"}}},
             "Model": {"type": "object", "required": ["id"], "properties": {"id": {"type": "string"}, "object": {"type": "string"}}},
             "ModelsResponse": {"type": "object", "required": ["data"], "properties": {"object": {"type": "string"}, "data": {"type": "array", "items": {"$ref": "#/components/schemas/Model"}}}},
-            "ChatResponse": {"type": "object", "required": ["id", "choices"], "properties": {"id": {"type": "string"}, "object": {"type": "string"}, "choices": {"type": "array", "items": {"type": "object"}}}},
+            "ChatMessage": {"type": "object", "required": ["role", "content"], "properties": {"role": {"type": "string", "enum": ["system", "user", "assistant", "tool"], "description": "Conversation role."}, "content": {"type": "string", "description": "Message content."}, "name": {"type": "string"}, "tool_call_id": {"type": "string"}}},
+            "ChatRequest": {"type": "object", "required": ["model", "messages"], "properties": {"model": {"type": "string", "description": "Route to call, e.g. surp/free, surp/value, surp/frontier.", "examples": ["surp/free", "surp/value"]}, "messages": {"type": "array", "items": {"$ref": "#/components/schemas/ChatMessage"}}, "max_tokens": {"type": "integer", "minimum": 1}, "temperature": {"type": "number", "minimum": 0, "maximum": 2}, "stream": {"type": "boolean", "default": False}}},
+            "ChatChoice": {"type": "object", "required": ["index", "message"], "properties": {"index": {"type": "integer"}, "message": {"$ref": "#/components/schemas/ChatMessage"}, "finish_reason": {"type": ["string", "null"], "enum": ["stop", "length", "content_filter", "tool_calls", None]}}},
+            "Usage": {"type": "object", "properties": {"prompt_tokens": {"type": "integer"}, "completion_tokens": {"type": "integer"}, "total_tokens": {"type": "integer"}}},
+            "ChatResponse": {"type": "object", "required": ["id", "choices"], "properties": {"id": {"type": "string"}, "object": {"type": "string"}, "created": {"type": "integer"}, "model": {"type": "string"}, "choices": {"type": "array", "items": {"$ref": "#/components/schemas/ChatChoice"}}, "usage": {"$ref": "#/components/schemas/Usage"}}},
         }},
         "paths": {
-            "/chat/completions": {"post": {"operationId": "createChatCompletion", "summary": "Chat completions", "description": "OpenAI-compatible chat completions. Requires x402 EIP-3009 USDC payment on Base or a prepaid API key.", "requestBody": {"required": True, "content": {"application/json": {"schema": {"type": "object", "required": ["model", "messages"], "properties": {"model": {"type": "string"}, "messages": {"type": "array", "items": {"type": "object"}}, "max_tokens": {"type": "integer"}}}}}}, "x-payment-info": {"offers": [{"intent": "charge", "method": "evm", "amount": None, "currency": USDC_BASE_MAINNET, "description": "Dynamic per-request USDC charge on Base; the runtime HTTP 402 challenge provides the authoritative amount."}]}, "responses": {"200": {"description": "Chat completion", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ChatResponse"}}}}, "402": {"description": "Payment required", "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}}, "404": {"description": "Route not found", "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}}, "429": {"description": "Rate limited", "headers": {"Retry-After": {"schema": {"type": "integer"}}}, "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}}, "500": {"description": "Server error", "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}}}}},
+            "/chat/completions": {"post": {"operationId": "createChatCompletion", "summary": "Chat completions", "description": "OpenAI-compatible chat completions. Requires x402 EIP-3009 USDC payment on Base or a prepaid API key.", "requestBody": {"required": True, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ChatRequest"}}}}, "x-payment-info": {"offers": [{"intent": "charge", "method": "evm", "amount": None, "currency": USDC_BASE_MAINNET, "description": "Dynamic per-request USDC charge on Base; the runtime HTTP 402 challenge provides the authoritative amount."}]}, "responses": {"200": {"description": "Chat completion", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ChatResponse"}}}}, "402": {"description": "Payment required", "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}}, "404": {"description": "Route not found", "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}}, "429": {"description": "Rate limited", "headers": {"Retry-After": {"schema": {"type": "integer"}}}, "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}}, "500": {"description": "Server error", "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}}}}},
             "/models": {"get": {"operationId": "listModels", "summary": "List models", "description": "List available Surp routes and models.", "responses": {"200": {"description": "Available models", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ModelsResponse"}}}}, "500": {"description": "Server error", "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}}}}},
         },
         "x-rate-limit-policy": {"headers": {"RateLimit-Limit": "60", "RateLimit-Remaining": "59", "RateLimit-Reset": "60"}, "documentation": "Clients should honor RateLimit-* headers and Retry-After on 429 responses."},
-        "x-deprecation-policy": "Stable API versions use /v1. Breaking changes receive a Deprecation or Sunset response header and are documented at https://surp.ivc.lol/docs.",
+        "x-deprecation-policy": "Stable API versions live under /v1. Breaking changes are never made silently: at least 90 days before a breaking change the affected responses carry a `Deprecation` header (RFC 9745) and a `Sunset` header (RFC 8594) with the removal date, and the change is announced on the versioning policy page https://surp.ivc.lol/versioning and in https://surp.ivc.lol/llms.txt. Additive changes (new optional fields, new routes) may ship at any time and are never breaking.",
+        "x-sunset-policy": "When an API version is scheduled for removal, every response from that version returns `Deprecation: true` and `Sunset: <HTTP-date>` (RFC 8594). Clients should treat any Sunset date as authoritative and migrate before it. See https://surp.ivc.lol/versioning.",
     }
     return web.json_response(doc, headers={"Cache-Control": "public, max-age=300", "Access-Control-Allow-Origin": "*"})
 
@@ -5091,9 +5101,9 @@ async def serve_openapi(request: web.Request) -> web.Response:
 async def serve_sitemap(request: web.Request) -> web.Response:
     import time as _time
     lastmod = _time.strftime("%Y-%m-%d", _time.gmtime())
-    pages = ["/", "/developers", "/docs", "/connect", "/builder", "/about", "/contact", "/privacy", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/prices", "/pricing", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api"]
+    pages = ["/", "/developers", "/docs", "/connect", "/builder", "/about", "/contact", "/privacy", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/prices", "/pricing", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/versioning", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api"]
     machine_resources = [
-        "/openapi.json", "/auth.md", "/llms.txt", "/llms-full.txt", "/llms-ctx-full.txt", "/mcp.json",
+        "/openapi.json", "/auth.md", "/llms.txt", "/llms-full.txt", "/llms-ctx-full.txt", "/mcp.json", "/mcp", "/versioning",
         "/.well-known/mcp/server-card.json", "/.well-known/agent-card.json",
         "/.well-known/agent-skills/index.json",
     ]
@@ -5137,13 +5147,38 @@ Surp never receives or stores private wallet keys.
     return web.Response(text=body, content_type="text/markdown")
 
 
+async def page_versioning(request: web.Request) -> web.Response:
+    """Public API versioning & deprecation policy (RFC 8594 / RFC 9745)."""
+    if "text/markdown" in request.headers.get("Accept", ""):
+        markdown = (
+            "# Surp API versioning & deprecation policy\n\n"
+            "## Current version\n\n"
+            "The current stable API version is `v1`, served under `https://surp.ivc.lol/v1` (URL path versioning).\n\n"
+            "## What is breaking\n\n"
+            "- Removing or renaming an endpoint, field, or error code\n"
+            "- Changing a field's type or making an optional field required\n"
+            "- Changing auth semantics or payment flow requirements\n\n"
+            "Additive changes are NOT breaking and may ship at any time: new optional request fields, new response fields, new routes, new models.\n\n"
+            "## Deprecation & sunset process\n\n"
+            "1. Breaking changes are announced on this page and in https://surp.ivc.lol/llms.txt at least **90 days** before taking effect.\n"
+            "2. From that moment, every affected response carries a `Deprecation: true` header (RFC 9745) and a `Sunset: <HTTP-date>` header (RFC 8594) with the removal date.\n"
+            "3. During the window the old behavior keeps working unchanged; after the Sunset date the endpoint may return `410 Gone` with a `Problem` body pointing at the successor.\n\n"
+            "Agents and clients should treat any `Sunset` header as authoritative and migrate before the date.\n"
+        )
+        return web.Response(text=markdown, content_type="text/markdown", headers={"Vary": "Accept", **_agent_discovery_headers()})
+    content = """<h1>Surp API versioning &amp; deprecation policy</h1><p>The current stable API version is <code>v1</code>, served under <code>https://surp.ivc.lol/v1</code> (URL path versioning).</p><h2>What counts as breaking</h2><ul><li>Removing or renaming an endpoint, field, or error code</li><li>Changing a field's type or making an optional field required</li><li>Changing auth semantics or payment flow requirements</li></ul><p>Additive changes are not breaking and may ship at any time: new optional request fields, new response fields, new routes, new models.</p><h2>Deprecation &amp; sunset process</h2><ol><li>Breaking changes are announced on this page and in <a href='/llms.txt'>llms.txt</a> at least <strong>90 days</strong> before taking effect.</li><li>From that moment, every affected response carries a <code>Deprecation: true</code> header (RFC 9745) and a <code>Sunset: &lt;HTTP-date&gt;</code> header (RFC 8594) with the removal date.</li><li>During the window the old behavior keeps working unchanged; after the Sunset date the endpoint may return <code>410 Gone</code> with a <code>Problem</code> body pointing at the successor.</li></ol><p>Clients should treat any <code>Sunset</code> header as authoritative and migrate before the date. The machine-readable form of this policy is <code>x-deprecation-policy</code> in the <a href='/openapi.json'>OpenAPI 3.1 specification</a>.</p>"""
+    return web.Response(text=_render_html(content, "/versioning"), content_type="text/html", headers=_agent_discovery_headers())
+
+
 async def serve_mcp_card(request: web.Request) -> web.Response:
+    """Public MCP discovery manifest — points agents at the Streamable HTTP server."""
     return web.json_response({
         "name": "Surp",
         "description": "Surp AI inference router",
-        "transport": "HTTP",
-        "url": "https://surp.ivc.lol/v1",
-    })
+        "transport": "streamable-http",
+        "url": "https://surp.ivc.lol/mcp",
+        "protocolVersion": mcp_server.LATEST_PROTOCOL_VERSION,
+    }, headers={"Access-Control-Allow-Origin": "*"})
 
 
 async def serve_oauth_authorization_server(request: web.Request) -> web.Response:
@@ -5185,7 +5220,7 @@ async def serve_mcp_server_card(request: web.Request) -> web.Response:
         "remotes": [{
             "type": "streamable-http",
             "url": "https://surp.ivc.lol/mcp",
-            "supportedProtocolVersions": ["2025-06-18"],
+            "supportedProtocolVersions": list(mcp_server.SUPPORTED_PROTOCOL_VERSIONS),
         }],
     }
     return web.json_response(card, headers={"Access-Control-Allow-Origin": "*"})
@@ -5595,7 +5630,9 @@ def build_app() -> web.Application:
     app.router.add_get("/llms-ctx-full.txt", serve_llms_full)
     app.router.add_get("/openapi.json", serve_openapi)
     app.router.add_get("/auth.md", serve_auth_md)
+    app.router.add_get("/versioning", page_versioning)
     app.router.add_get("/mcp.json", serve_mcp_card)
+    mcp_server.register(app)
     app.router.add_static("/static", _STATIC_DIR)
     app.router.add_get("/sitemap.xml", serve_sitemap)
     app.router.add_route("*", "/{tail:.*}", page_404)
