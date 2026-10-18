@@ -1,4 +1,4 @@
-"""Live free model health board with auto-ranking."""
+"""Live provider/model health board with auto-ranking."""
 
 TITLE = "Free Model Health Board — Live TPS, Latency & Reliability | surp.ivc.lol"
 DESC = ("Live provider health board: TPS, p50/p95 latency, failure rate, and "
@@ -90,5 +90,5 @@ def content(ranked: list[dict], conversion: dict, free_stats: dict) -> str:
 <li><b>Community good:</b> this data doesn't exist anywhere else. We can publish it as a public good.</li>
 </ul>
 
-<p class="dim">related: <a href="/free-models">free models &amp; live budget</a> · <a href="/status">system status</a> · <a href="/cache">cache-aware routing</a> · <a href="/proposal">reward proposal</a></p>
+<p class="dim">related: <a href="/status">system status</a> · <a href="/cache">cache-aware routing</a> · <a href="/proposal">reward proposal</a></p>
 """

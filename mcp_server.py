@@ -106,12 +106,12 @@ _TOOLS: list[dict[str, Any]] = [
     {
         "name": "chat_completion",
         "title": "Chat completion",
-        "description": "OpenAI-compatible chat completion against POST /v1/chat/completions with model 'surp/<route>' (e.g. 'surp/free' for the sponsored free tier, 'surp/value' for cost-aware routing, 'surp/frontier' for quality). Requires the MCP client to send a prepaid Bearer key in the Authorization header, or returns the x402 USDC-on-Base payment requirements from the 402 challenge.",
+        "description": "OpenAI-compatible chat completion against POST /v1/chat/completions with model 'surp/<route>' (e.g. 'surp/value' for cost-aware routing, 'surp/frontier' for quality, 'surp/jev' for decision-model routing). Requires the MCP client to send a prepaid Bearer key in the Authorization header, or returns the x402 USDC-on-Base payment requirements from the 402 challenge.",
         "inputSchema": {
             "type": "object",
             "required": ["model", "messages"],
             "properties": {
-                "model": {"type": "string", "description": "Route to call, e.g. surp/free, surp/value, surp/frontier"},
+                "model": {"type": "string", "description": "Route to call, e.g. surp/value, surp/frontier, surp/jev"},
                 "messages": {
                     "type": "array",
                     "description": "OpenAI-style messages",
@@ -186,7 +186,6 @@ async def _handle_initialize(params: dict, request: web.Request) -> dict:
         "instructions": (
             "Surp routes OpenAI-compatible chat completions to the live cheapest model on the "
             "Surplus Intelligence marketplace. Call list_models first; use chat_completion with "
-            "model 'surp/free' for zero-cost testing (daily cap applies) and 'surp/value' or "
             "'surp/frontier' for production. Paid calls need a prepaid Bearer key in the "
             "Authorization header or an x402 USDC-on-Base payment."
         ),
@@ -223,7 +222,7 @@ async def _handle_tools_call(params: dict, request: web.Request) -> dict:
         if status == 402:
             # Valid, well-formed outcome: tell the agent how to pay.
             return {
-                "content": [{"type": "text", "text": f"Payment required (HTTP 402). Challenge details:\n{body}\n\nCreate a self-serve prepaid key at https://surp.ivc.lol/app or fulfill the x402 USDC-on-Base challenge. Retry with the Authorization header set, or use model 'surp/free' for the sponsored free tier."}],
+                "content": [{"type": "text", "text": f"Payment required (HTTP 402). Challenge details:\n{body}\n\nCreate a self-serve prepaid key at https://surp.ivc.lol/app or fulfill the x402 USDC-on-Base challenge. Retry with the Authorization header set."}],
                 "isError": False,
             }
         return _tool_text_result(status, body, "chat completion")

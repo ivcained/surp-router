@@ -128,7 +128,7 @@ CONTENT = r'''
     <h1>Spend less on every AI call.</h1>
     <p class="home-lede">Surp uses live SurplusIntelligence.ai market prices, picks a model for the route you choose, and reuses identical answers for $0.001. Connect once and pay in USDC on Base.</p>
     <div class="home-actions">
-      <a href="#try" class="home-primary-cta">Try it free</a>
+      <a href="#try" class="home-primary-cta">See live prices</a>
       <a href="#connect" class="home-secondary">Connect your agent →</a>
     </div>
     <div class="home-proof">
@@ -161,15 +161,14 @@ CONTENT = r'''
         <p class="demo-sample-note" id="demo-sample-note">Read-only sample of what a request looks like — the route picker below picks the live model and price for this call.</p>
         <span class="demo-buttons-label">Choose a route</span>
         <div class="demo-buttons" role="group" aria-label="route" aria-describedby="route-hint">
-          <button class="active" data-mode="free">Free</button>
-          <button data-mode="value">Value</button>
+          <button class="active" data-mode="value">Value</button>
           <button data-mode="jev">Jev</button>
           <button data-mode="frontier">Frontier</button>
           <button data-mode="fast">Fast</button>
           <button data-mode="vision">Vision</button>
           <button data-mode="custom">Custom</button>
         </div>
-        <p class="demo-route-hint" id="route-hint">Free = $0, daily cap · Value = smart + cheap · Jev = decision-model routing · Frontier = best quality · Fast = lowest latency · Vision = images · Custom = tune weights</p>
+        <p class="demo-route-hint" id="route-hint">Value = smart + cheap · Jev = decision-model routing · Frontier = best quality · Fast = lowest latency · Vision = images · Custom = tune weights</p>
         <div class="demo-custom" id="demo-custom">
           <p class="dim">Set how much intelligence, speed, and discount matter. Cost here is Surplus % off the AA list price.</p>
           <div class="sliders">
@@ -181,18 +180,17 @@ CONTENT = r'''
       </div>
       <div class="demo-result" aria-live="polite">
         <span class="route-label">Surp routes this to</span>
-        <div class="route" id="demo-route">surp/free</div>
+        <div class="route" id="demo-route">surp/value</div>
         <span class="model-label">Live model pick</span>
         <div class="saving" id="demo-price">loading…</div>
-        <p class="detail" id="demo-saving">Free route. Treasury pays Surplus. You pay $0 within the daily cap.</p>
+        <p class="detail" id="demo-saving">Live model pick at the current market price.</p>
       </div>
     </div>
 
     <div class="agent-box" id="agent-box">
-      <h3>Create a free key</h3>
-      <p>Start with a free Surp key, then copy the ready-to-use prompt into your agent.</p>
-      <button type="button" id="btn-make-key">Create a free key</button>
-      <p id="key-status" class="key-status-msg" aria-live="polite"></p>
+      <h3>Get a Surp key</h3>
+      <p>Create a prepaid key in the account app, then copy the ready-to-use prompt into your agent. Paid requests start at $0.01.</p>
+      <a class="btn" href="/app">Open account app →</a>
     </div>
 
     <div class="agent-box" id="agent-prompt-box">
@@ -202,7 +200,7 @@ CONTENT = r'''
 
 Base URL: https://surp.ivc.lol/v1
 API key: YOUR_SURP_KEY
-Model: surp/free
+Model: surp/value
 
 Do not use https://api.surplusintelligence.ai/min30/v1/chat/completions
 Do not expect a SurplusIntelligence balance here. This key only works on this base URL.</pre>
@@ -219,7 +217,7 @@ Do not expect a SurplusIntelligence balance here. This key only works on this ba
     <div class="connection-steps">
       <div class="connection-step">
         <b>1 · Choose</b>
-        <p>Pick a route: <code>surp/free</code>, <code>surp/value</code>, <code>surp/frontier</code>, <code>surp/fast</code>, <code>surp/vision</code>, or <code>surp/custom</code>.</p>
+        <p>Pick a route: <code>surp/value</code>, <code>surp/frontier</code>, <code>surp/fast</code>, <code>surp/vision</code>, or <code>surp/custom</code>.</p>
       </div>
       <div class="connection-step">
         <b>2 · Fund</b>
@@ -267,10 +265,10 @@ Do not expect a SurplusIntelligence balance here. This key only works on this ba
   var saving = document.getElementById('demo-saving');
   var custom = document.getElementById('demo-custom');
   var promptBox = document.getElementById('agent-prompt');
-  var keyStatus = document.getElementById('key-status');
-  var makeKeyBtn = document.getElementById('btn-make-key');
   var copyPromptBtn = document.getElementById('btn-copy-prompt');
-  var currentMode = 'free';
+  // key-status element was removed with the free-key flow; statusMsg is a no-op.
+  var keyStatus = { className: '', textContent: '' };
+  var currentMode = 'value';
   var currentKey = 'YOUR_SURP_KEY';
 
   function weights() {
@@ -326,9 +324,7 @@ Do not expect a SurplusIntelligence balance here. This key only works on this ba
       } else {
         price.textContent = 'no model';
       }
-      if (mode === 'free') {
-        saving.textContent = 'Free route. You pay $0 within the daily cap. Live model: ' + (data.model || 'n/a') + '.';
-      } else if (data.discount_pct != null) {
+      if (data.discount_pct != null) {
         saving.textContent = (data.surplus_usd_per_1m != null ? ('$' + data.surplus_usd_per_1m + '/M Surplus. ') : '') +
           data.discount_pct + '% below the Artificial Analysis list price. ' + (data.description || '');
       } else {
@@ -396,37 +392,7 @@ Do not expect a SurplusIntelligence balance here. This key only works on this ba
     keyStatus.textContent = 'Select text above and press Ctrl+C (Cmd+C).';
   }
 
-  makeKeyBtn.addEventListener('click', function () {
-    keyStatus.className = 'key-status-msg';
-    keyStatus.textContent = 'Creating a free key…';
-    makeKeyBtn.disabled = true;
-    fetch('/api/free-key', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ label: 'homepage' })
-    }).then(function (r) {
-      if (!r.ok) {
-        throw new Error('HTTP ' + r.status);
-      }
-      return r.json();
-    }).then(function (data) {
-      makeKeyBtn.disabled = false;
-      if (!data || !data.key) {
-        keyStatus.className = 'key-status-msg err';
-        keyStatus.textContent = (data && data.error) || 'Could not create a key. Open /app instead.';
-        return;
-      }
-      setPrompt(currentMode, data.key);
-      keyStatus.className = 'key-status-msg ok';
-      keyStatus.textContent = 'Key created and added to prompt. Save it now — this page will not display it again.';
-    }).catch(function (err) {
-      makeKeyBtn.disabled = false;
-      keyStatus.className = 'key-status-msg err';
-      keyStatus.textContent = 'Could not create a key (' + (err.message || 'network') + '). Open /app instead.';
-    });
-  });
-
-  loadPreview('free');
+  loadPreview('value');
 })();
 </script>
 '''

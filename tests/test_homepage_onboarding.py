@@ -8,7 +8,7 @@ def test_homepage_starts_with_one_value_proposition_and_primary_cta():
     assert 'pay in USDC on Base' in _HOME_CONTENT
     assert 'crypto onramp' not in _HOME_CONTENT.lower()
     assert 'href="#try" class="home-primary-cta"' in _HOME_CONTENT
-    assert 'Try it free' in _HOME_CONTENT
+    assert 'See live prices' in _HOME_CONTENT
     assert _HOME_CONTENT.index('Spend less on every AI call.') < _HOME_CONTENT.index('id="try"')
     assert 'crypto onramp' not in _HOME_CONTENT.lower()
 
@@ -19,14 +19,14 @@ def test_homepage_explains_cache_hit_price():
     assert 'id="cache-tip-text"' in _HOME_CONTENT
 
 
-def test_homepage_demo_uses_aa_routes_and_defaults_to_free():
-    assert 'data-mode="free"' in _HOME_CONTENT
+def test_homepage_demo_uses_aa_routes_and_defaults_to_value():
+    assert 'data-mode="free"' not in _HOME_CONTENT
     assert 'data-mode="value"' in _HOME_CONTENT
     assert 'data-mode="frontier"' in _HOME_CONTENT
     assert 'data-mode="fast"' in _HOME_CONTENT
     assert 'data-mode="vision"' in _HOME_CONTENT
     assert 'data-mode="custom"' in _HOME_CONTENT
-    assert _HOME_CONTENT.index('data-mode="free"') < _HOME_CONTENT.index('data-mode="value"')
+    assert 'surp/free' not in _HOME_CONTENT
     assert 'data-route="surp/best-coding"' not in _HOME_CONTENT
 
 

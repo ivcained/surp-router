@@ -11,14 +11,13 @@ the request body, and forwards to Surplus's /v1/chat/completions.
 Combos (15):
   best-coding, best-reasoning, best-fast, best-vision, best-chat,
   best-coding-fast, pro-coding, pro-reasoning, pro-vision, pro-chat,
-  pro-fast, coding, fast, chat, srup-free
+  pro-fast, coding, fast, chat
 
   best-*  -> cheapest model in the class
   pro-*   -> cheapest *frontier-tier* model in the class
   coding  -> alias of best-coding
   fast    -> alias of best-fast
   chat    -> alias of best-chat
-  srup-free -> zero-price model if any, else the absolute cheapest text LLM
 
 Run:
   SURPLUS_INTELLIGENCE_API_KEY=inf_xxx python3 proxy.py [--port 20129]
@@ -91,7 +90,6 @@ COMBOS: list[str] = [
     "best-coding-fast",
     "pro-coding", "pro-reasoning", "pro-vision", "pro-chat", "pro-fast",
     "coding", "fast", "chat",
-    "srup-free",
 ]
 
 # Price cache TTL in seconds. The market book moves, but 30s is a reasonable

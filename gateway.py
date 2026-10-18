@@ -43,8 +43,6 @@ import proposal_page as pp
 import nft_gate as ng
 import community_feedback as cf
 import token_gate_page as tgp
-import free_models as fm
-import free_models_page as fmp
 import provider_health as ph
 import health_board_page as hbp
 import features_page as fp
@@ -620,17 +618,13 @@ PAGE_META = {
         "title": "Token-Gated API Access — NFT eligibility for surp.ivc.lol",
         "desc": "How surp.ivc.lol uses NFT/token holdings to gate API access. Prototype design, community feedback, and how to participate.",
     },
-    "/free-models": {
-        "title": "Free AI Models — Live Sponsored LLM API | surp.ivc.lol",
-        "desc": "Use surp/free for genuinely free, treasury-sponsored AI inference. See live eligible models, daily budgets, fallback health, and OmniRoute-inspired free-tier intelligence.",
-    },
     "/health": {
-        "title": "Free Model Health Board — Live TPS, Latency & Reliability | surp.ivc.lol",
+        "title": "Provider Health Board — Live TPS, Latency & Reliability | surp.ivc.lol",
         "desc": "Live provider health board: TPS, p50/p95 latency, failure rate, and composite health score for every model surp has routed. Fills the gap left by the Surplus Intelligence marketplace dashboard.",
     },
     "/features": {
         "title": "Features & Updates — surp.ivc.lol Changelog",
-        "desc": "Day-by-day progress on surp.ivc.lol: x402 LLM gateway, cache flywheel rewards, token-gated access, free AI models, provider health board, and SEO landing pages. See what shipped and when.",
+        "desc": "Day-by-day progress on surp.ivc.lol: x402 LLM gateway, cache flywheel rewards, token-gated access, Jev smart routing, provider health board, and SEO landing pages. See what shipped and when.",
     },
     "/auction": {
         "title": "Cache-Affinity Auction — Why Orderbook Pricing Fails for Cached Inference | surp.ivc.lol",
@@ -749,7 +743,7 @@ async def page_home(request: web.Request) -> web.Response:
 
 
 async def page_developers(request: web.Request) -> web.Response:
-    content = """<h1>Surp Developer Portal</h1><p>Build agent and application integrations with Surp's [OI]-compatible AI inference router.</p><h2>Core developer resources</h2><ul><li><a href='/docs'>Surp API documentation</a> — authentication, endpoints, x402 payment flow, pricing, streaming, and examples.</li><li><a href='/openapi.json'>Surp OpenAPI 3.1 specification</a> — typed requests, responses, operation IDs, and error models.</li><li><a href='/auth.md'>Surp agent authentication guide</a> — prepaid Bearer keys and x402 payment signatures.</li><li><a href='/mcp.json'>Surp MCP manifest</a> and <a href='/.well-known/mcp/server-card.json'>MCP Server Card</a>.</li><li><a href='/mcp'>Surp MCP server</a> — live Streamable HTTP endpoint (initialize, tools, resources).</li><li><a href='/versioning'>API versioning &amp; deprecation policy</a> — URL versioning, Deprecation and Sunset headers.</li><li><a href='/.well-known/agent-card.json'>Surp A2A Agent Card</a> and <a href='/.well-known/agent-skills/index.json'>Agent Skills index</a>.</li><li><a href='/llms.txt'>Surp llms.txt</a> — concise instructions for agents.</li></ul><h2>Start building</h2><p>Use <code>https://surp.ivc.lol/v1</code> as the base URL. List routes with <a href='/v1/models'>GET /v1/models</a> and submit completions to <code>POST /v1/chat/completions</code>. Create a self-serve key in the <a href='/app'>Surp account app</a>, use the <a href='/free-models'>sponsored free route</a>, or fulfill the x402 payment challenge returned by a paid request.</p><h2>Sandbox &amp; free tier</h2><p>Test with zero credentials: <code>curl https://surp.ivc.lol/v1/models</code> (no auth), then call <code>surp/free</code> for sponsored zero-cost inference within the daily cap. Get a self-serve free-tier key with elevated budgets via <code>curl -X POST https://surp.ivc.lol/api/free-key -H 'Content-Type: application/json' -d '{"label":"sandbox"}'</code> — no signup, no 'contact sales'. Prepaid keys are created the same way in the <a href='/app'>account app</a>.</p><h2>Operations</h2><p>See <a href='/pricing'>pricing</a>, <a href='/status'>service status</a>, <a href='/privacy'>privacy</a>, and <a href='/contact'>developer support</a>.</p>"""
+    content = """<h1>Surp Developer Portal</h1><p>Build agent and application integrations with Surp's [OI]-compatible AI inference router.</p><h2>Core developer resources</h2><ul><li><a href='/docs'>Surp API documentation</a> — authentication, endpoints, x402 payment flow, pricing, streaming, and examples.</li><li><a href='/openapi.json'>Surp OpenAPI 3.1 specification</a> — typed requests, responses, operation IDs, and error models.</li><li><a href='/auth.md'>Surp agent authentication guide</a> — prepaid Bearer keys and x402 payment signatures.</li><li><a href='/mcp.json'>Surp MCP manifest</a> and <a href='/.well-known/mcp/server-card.json'>MCP Server Card</a>.</li><li><a href='/mcp'>Surp MCP server</a> — live Streamable HTTP endpoint (initialize, tools, resources).</li><li><a href='/versioning'>API versioning &amp; deprecation policy</a> — URL versioning, Deprecation and Sunset headers.</li><li><a href='/.well-known/agent-card.json'>Surp A2A Agent Card</a> and <a href='/.well-known/agent-skills/index.json'>Agent Skills index</a>.</li><li><a href='/llms.txt'>Surp llms.txt</a> — concise instructions for agents.</li></ul><h2>Start building</h2><p>Use <code>https://surp.ivc.lol/v1</code> as the base URL. List routes with <a href='/v1/models'>GET /v1/models</a> and submit completions to <code>POST /v1/chat/completions</code>. Create a self-serve key in the <a href='/app'>Surp account app</a>, or fulfill the x402 payment challenge returned by a paid request.</p><h2>Sandbox</h2><p>Test with zero credentials: <code>curl https://surp.ivc.lol/v1/models</code> (no auth), then browse live prices at <a href='/prices'>/prices</a> and pick a combo. Paid requests cost from $0.01: create a prepaid key in the <a href='/app'>account app</a> or complete an x402 challenge.</p><h2>Operations</h2><p>See <a href='/pricing'>pricing</a>, <a href='/status'>service status</a>, <a href='/privacy'>privacy</a>, and <a href='/contact'>developer support</a>.</p>"""
     return web.Response(text=_render_html(content, "/developers"), content_type="text/html", headers=_agent_discovery_headers())
 
 
@@ -919,22 +913,6 @@ async def api_combos(request: web.Request) -> web.Response:
     markets = await GCACHE.get()
     out = []
     for combo in COMBOS:
-        if combo in ("free", "srup-free", "free-coding", "free-fast"):
-            free_class = "coding" if combo == "free-coding" else "fast" if combo == "free-fast" else "chat"
-            free_pool = fm.sponsored_pool_for_class(markets, free_class) if free_class != "chat" else fm.sponsored_pool(markets)
-            model = free_pool[0]["model"] if free_pool else None
-            out.append({
-                "combo": f"surp/{combo}",
-                "resolved_model": model,
-                "surplus_price_per_1m_atomic": 0,
-                "usd_per_1m_tokens": 0,
-                "pool_size": len(free_pool),
-                "sellers": next((m.get("healthy_seller_count") for m in free_pool if m.get("model") == model), None),
-                "sponsored": True,
-                "free_class": free_class,
-                "budget": fm.live_stats(),
-            })
-            continue
         model, debug, price, pool = resolve_combo(combo, markets)
         out.append({
             "combo": f"surp/{combo}",
@@ -1117,12 +1095,6 @@ async def api_health(request: web.Request) -> web.Response:
         "markup_bps": MARKUP_BPS,
         "floor_cents": FLOOR_CENTS,
         "cached_markets": len(GCACHE._markets or []),
-        "free_tier": {
-            "model": "surp/free",
-            "sponsored": True,
-            "usage": fm.live_stats(),
-            "catalog": fm.catalog_summary(),
-        },
     })
 
 
@@ -1142,162 +1114,6 @@ def _safe_reward(fn, *args, default=None, **kwargs):
     except Exception as e:
         logging.getLogger("surp.gateway").warning(f"reward op {fn.__name__} failed (non-fatal): {e}")
         return default
-
-
-async def _serve_free_completion(
-    request: web.Request,
-    payload: dict[str, Any],
-    markets: list[dict[str, Any]],
-    client_ip: str,
-    free_class: str = "chat",
-) -> web.Response:
-    """Serve a treasury-sponsored free completion with live fallback.
-
-    Supports per-class price ceilings (chat/coding/fast), free-tier API keys
-    with elevated budgets, streaming with conservative buffers, provider
-    health recording, and free-to-paid conversion tracking.
-    """
-    log = logging.getLogger("surp.gateway")
-    is_stream = bool(payload.get("stream"))
-    if payload.get("tools") or payload.get("tool_choice"):
-        return web.json_response({"error": "free tier does not support tool calls; use the paid endpoint"}, status=400)
-    max_tokens = min(int(payload.get("max_tokens") or fm.MAX_OUTPUT_TOKENS), fm.MAX_OUTPUT_TOKENS)
-    payload["max_tokens"] = max_tokens
-
-    # Free-tier API key support: heavy users can present an elevated free key.
-    auth = request.headers.get("Authorization", "")
-    free_key_rec = None
-    if auth.startswith("Bearer sk-surp-free-"):
-        free_key_rec = fm.validate_free_key(auth[7:])
-        if free_key_rec is None:
-            return web.json_response({"error": "invalid free-tier key"}, status=401)
-
-    if free_key_rec:
-        client_id = free_key_rec["key_hash"][:24]
-        elevated_req = free_key_rec["elevated_requests"]
-        elevated_tok = free_key_rec["elevated_tokens"]
-    else:
-        client_id = hashlib.sha256(client_ip.encode()).hexdigest()[:24]
-        elevated_req = 0
-        elevated_tok = 0
-
-    # Budget check: streaming uses a larger conservative buffer.
-    if is_stream:
-        ok, reason = fm.can_serve_streaming(client_id, is_key=bool(free_key_rec),
-                                            elevated_requests=elevated_req, elevated_tokens=elevated_tok)
-    else:
-        ok, reason = fm.can_serve_free(client_id, max_tokens, is_key=bool(free_key_rec),
-                                        elevated_requests=elevated_req, elevated_tokens=elevated_tok)
-    if not ok:
-        # Record a potential conversion: this user hit the free wall.
-        fm.record_conversion(client_id, "free", "best-chat")
-        return web.json_response({
-            "error": "free tier budget exhausted",
-            "reason": reason,
-            "stats": fm.live_stats(),
-            "paid_option": "Use surp/best-chat with x402 for guaranteed access.",
-        }, status=429, headers={"Retry-After": "3600"})
-
-    # Select the per-class sponsored pool. If a specialized class (coding/fast)
-    # has no eligible models, gracefully fall back to the general chat pool so
-    # the request still succeeds rather than 503ing.
-    if free_class == "coding":
-        pool = fm.sponsored_pool_for_class(markets, "coding")
-    elif free_class == "fast":
-        pool = fm.sponsored_pool_for_class(markets, "fast")
-    else:
-        pool = fm.sponsored_pool(markets)
-    if not pool and free_class != "chat":
-        pool = fm.sponsored_pool(markets)
-        log.info(f"free/{free_class} pool empty, falling back to general free pool")
-    if not pool:
-        return web.json_response({
-            "error": f"no live models currently meet the sponsored-free {free_class} guardrails",
-            "max_model_usd_per_1m": fm.CLASS_CEILINGS.get(free_class, fm.MAX_MODEL_USD_PER_1M),
-        }, status=503)
-
-    free_pick = aa_router.pick("free", pool)
-    if free_pick is not None:
-        pool = sorted(
-            pool,
-            key=lambda m: (0 if m.get("model") == free_pick.model else 1, cr.price_of(m)),
-        )
-
-    failed: set[str] = set()
-    attempts: list[dict[str, Any]] = []
-    started = time.monotonic()
-    for candidate in fm.fallback_order(pool, failed)[:fm.FALLBACK_ATTEMPTS]:
-        model_id = str(candidate["model"])
-        fwd = dict(payload)
-        fwd["model"] = model_id
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{RESOLVER_BASE}/v1/chat/completions",
-                    headers={"Content-Type": "application/json"},
-                    json=fwd,
-                    timeout=aiohttp.ClientTimeout(total=90),
-                ) as upstream:
-                    raw_body = await upstream.read()
-                    status = upstream.status
-            try:
-                data = json.loads(raw_body)
-            except Exception:
-                data = {"error": "upstream returned non-JSON", "raw": raw_body[:120].decode(errors="replace")}
-            if status == 200 and data.get("choices"):
-                usage = data.get("usage") or {}
-                tokens = int(usage.get("total_tokens") or
-                             (int(usage.get("prompt_tokens") or 0) + int(usage.get("completion_tokens") or 0)))
-                latency = int((time.monotonic() - started) * 1000)
-                # Record health sample for this model.
-                ph.record(model_id, status="ok", latency_ms=latency, tokens=tokens,
-                          provider=str(candidate.get("provider", "")))
-                if free_key_rec:
-                    fm.record_free_key_usage(auth[7:], model_id, tokens, "ok")
-                else:
-                    fm.record_usage(client_id, model_id, tokens, "ok", latency)
-                data["surp_free"] = {
-                    "sponsored": True,
-                    "price_usd": "$0.00",
-                    "routed_model": model_id,
-                    "free_class": free_class,
-                    "fallback_attempts": len(attempts),
-                    "daily_stats": fm.live_stats(),
-                    "conversion_stats": fm.conversion_stats(),
-                    "catalog_methodology": "OmniRoute-inspired, pool-deduped free-tier accounting; inference sponsored by surp, not third-party free credentials.",
-                }
-                return web.json_response(data, headers={
-                    "X-Surp-Free": "true",
-                    "X-Routed-Model": model_id,
-                    "X-Surp-Free-Class": free_class,
-                    "X-Surp-Fallback-Attempts": str(len(attempts)),
-                    "Cache-Control": "no-store",
-                })
-            error = data.get("error")
-            attempts.append({"model": model_id, "status": status, "error": error})
-            failed.add(model_id)
-            ph.record(model_id, status="failed", latency_ms=0, tokens=0,
-                      provider=str(candidate.get("provider", "")))
-            if free_key_rec:
-                fm.record_free_key_usage(auth[7:], model_id, 0, "failed")
-            else:
-                fm.record_usage(client_id, model_id, 0, "failed", 0)
-        except Exception as e:
-            attempts.append({"model": model_id, "status": 0, "error": str(e)[:120]})
-            failed.add(model_id)
-            ph.record(model_id, status="failed", latency_ms=0, tokens=0,
-                      provider=str(candidate.get("provider", "")))
-            if free_key_rec:
-                fm.record_free_key_usage(auth[7:], model_id, 0, "failed")
-            else:
-                fm.record_usage(client_id, model_id, 0, "failed", 0)
-            log.warning(f"free fallback failed for {model_id}: {e}")
-
-    return web.json_response({
-        "error": f"all sponsored-free {free_class} fallback models failed",
-        "attempts": attempts,
-        "paid_option": f"Use surp/best-{'coding' if free_class == 'coding' else 'chat'} with x402 for broader model availability.",
-    }, status=503)
 
 
 def _log_user_usage(request: web.Request, combo: str, model: str,
@@ -1397,13 +1213,6 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
         markets = await GCACHE.get()
     except Exception as e:
         return web.json_response({"error": f"market data unavailable: {e}"}, status=502)
-
-    # Treasury-sponsored free routes. `surp/free` is the canonical chat route;
-    # `surp/free-coding` and `surp/free-fast` restrict the sponsored pool to
-    # those model classes with their own (higher) price ceilings.
-    if combo in ("free", "srup-free", "free-coding", "free-fast"):
-        free_class = "coding" if combo == "free-coding" else "fast" if combo == "free-fast" else "chat"
-        return await _serve_free_completion(request, payload, markets, client_ip, free_class=free_class)
 
     live_model, debug, surplus_price, pool = resolve_combo(combo, markets, strategy=strategy)
     if live_model is None:
@@ -1967,10 +1776,7 @@ async def api_route_preview(request: web.Request) -> web.Response:
         markets = await GCACHE.get()
     except Exception as e:
         return web.json_response({"error": f"market data unavailable: {e}"}, status=502)
-    if mode == "free":
-        pool = fm.sponsored_pool(markets)
-    else:
-        pool = cr.pool_for(mode, markets)
+    pool = cr.pool_for(mode, markets)
     picked = aa_router.pick(mode, pool, weights=weights)
     body = aa_router.preview_dict(picked, mode)
     body["description"] = cr.COMBO_DESCRIPTIONS.get(mode, "")
@@ -1983,7 +1789,6 @@ async def page_status(request: web.Request) -> web.Response:
         "response_cache": _RESPONSE_CACHE.stats(),
         "sticky_routing": _STICKY_ROUTER.stats(),
         "rewards": rl.global_stats(),
-        "free_tier": fm.live_stats(),
     }
     health = {
         "resolver": "ok" if GCACHE._markets else "warming up",
@@ -2118,7 +1923,6 @@ async def api_global_stats(request: web.Request) -> web.Response:
         "response_cache": _RESPONSE_CACHE.stats(),
         "sticky_routing": _STICKY_ROUTER.stats(),
         "rewards": rl.global_stats(),
-        "free_tier": fm.live_stats(),
         "cache_affinity": ca.global_stats(),
     })
 
@@ -2148,7 +1952,6 @@ def _render_status_content(s: dict, health: dict) -> str:
     cache_stats = s.get("response_cache", {})
     sticky_stats = s.get("sticky_routing", {})
     reward_stats = s.get("rewards", {})
-    free_stats = s.get("free_tier", {})
     last_ts = s.get("last_request_ts")
     last_str = "never"
     if last_ts:
@@ -2216,12 +2019,7 @@ def _render_status_content(s: dict, health: dict) -> str:
 
 <h2>sponsored free tier</h2>
 <div class="grid">
-  <div class="card"><div class="num">{free_stats.get('requests_remaining', 0)}</div><div class="lbl">free requests remaining today</div></div>
-  <div class="card"><div class="num">{free_stats.get('tokens_remaining', 0):,}</div><div class="lbl">free tokens remaining today</div></div>
-  <div class="card"><div class="num">{free_stats.get('requests_today', 0)}</div><div class="lbl">free requests served today</div></div>
-  <div class="card"><div class="num">{free_stats.get('avg_latency_ms', 0):.0f}ms</div><div class="lbl">average free latency</div></div>
 </div>
-<p class="dim"><code>surp/free</code> is treasury-sponsored with no wallet or payment required. <a href="/free-models">live eligible models, budgets, and methodology &raquo;</a></p>
 
 <h2>top combos</h2>
 <table><thead><tr><th>combo</th><th>requests</th></tr></thead><tbody>{combo_rows}</tbody></table>
@@ -2621,7 +2419,6 @@ _HTML_BASE = r"""<!DOCTYPE html>
       <div class="site-menu-label">▸ models &amp; pricing</div>
       <a href="/prices">OpenRouter vs Surp</a>
       <a href="/top">top models</a>
-      <a href="/free-models">free models</a>
       <a href="/auction">cache auction</a>
 
       <div class="site-menu-label">▸ monitor</div>
@@ -2637,7 +2434,6 @@ _HTML_BASE = r"""<!DOCTYPE html>
     <div class="market-ticker" aria-hidden="true">
       <div class="market-live"><span class="live-dot"></span>LIVE</div>
       <div class="market-track">
-        <span>surp/free <b>$0.00</b> free</span><i>│</i>
         <span>surp/best-chat <b>$0.012</b> ↓</span><i>│</i>
         <span>surp/best-coding <b>$0.034</b> ↑</span><i>│</i>
         <span>usdc/base <b>$1.00</b></span><i>│</i>
@@ -2646,7 +2442,6 @@ _HTML_BASE = r"""<!DOCTYPE html>
         <span>cache <b>__CACHE_STATS__</b></span><i>│</i>
         <span>models live <b>__MODEL_COUNT__</b></span><i>│</i>
         <span>srp pool <b>2.4M</b> ↑</span><i>│</i>
-        <span>surp/free <b>$0.00</b> free</span><i>│</i>
         <span>surp/best-chat <b>$0.012</b> ↓</span><i>│</i>
         <span>surp/best-coding <b>$0.034</b> ↑</span><i>│</i>
         <span>usdc/base <b>$1.00</b></span><i>│</i>
@@ -2673,8 +2468,8 @@ _HTML_BASE = r"""<!DOCTYPE html>
 <div id="announce-banner" class="announce __ANNOUNCE_CLASS__">
   <span class="announce-pulse" aria-hidden="true"></span>
   <span class="announce-text">
-    <b>new:</b> genuinely free AI models are live —
-    <a href="/free-models">try surp/free + see live budgets</a> · <a href="/token-gating">token-gating prototype</a> · <a href="/proposal">vote on SRP</a>
+    <b>new:</b> Jev smart routing is live —
+    <a href="/updates/jev-routing">how the Jev router picks your model</a> · <a href="/proposal">vote on SRP</a>
   </span>
   <button class="announce-close" onclick="dismissAnnounce()" aria-label="dismiss">×</button>
 </div>
@@ -2693,7 +2488,7 @@ __CONTENT__
   </div>
   surp.ivc.lol &middot; built for the community
   <p class="dim" style="margin-top:8px;font-size:12px;">
-    <a href="/docs">docs</a> · <a href="/status">status</a> · <a href="/prices">prices</a> · <a href="/free-models">free models</a> · <a href="/app">account</a> · <a href="https://github.com/ivcained/surp-router">source on GitHub</a> · <a href="https://github.com/x402-foundation/x402">x402 protocol</a>
+    <a href="/docs">docs</a> · <a href="/status">status</a> · <a href="/prices">prices</a> · <a href="/app">account</a> · <a href="https://github.com/ivcained/surp-router">source on GitHub</a> · <a href="https://github.com/x402-foundation/x402">x402 protocol</a>
   </p>
 </footer>
 </div>
@@ -2705,7 +2500,7 @@ __CONTENT__
 // has seen the update isn't nagged on every page load. Bump the version
 // suffix when the announcement content changes so it resurfaces.
 (function() {
-  var v = "v2-free-models";
+  var v = "v3-jev-routing";
   try {
     if (localStorage.getItem("surp-announce-" + v) === "dismissed") {
       var b = document.getElementById("announce-banner");
@@ -2716,7 +2511,7 @@ __CONTENT__
 function dismissAnnounce() {
   var b = document.getElementById("announce-banner");
   if (b) b.classList.add("hidden");
-  try { localStorage.setItem("surp-announce-v2-free-models", "dismissed"); } catch (e) {}
+  try { localStorage.setItem("surp-announce-v3-jev-routing", "dismissed"); } catch (e) {}
 }
 
 // Mobile sidebar drawer — open/close with hamburger, click backdrop, or Escape.
@@ -2923,7 +2718,7 @@ __ROWS__
        "max_tokens":50}'</pre>
 <p class="dim">The response tells you exactly how to pay: the amount, the USDC contract address, and where to send it. Use any x402-compatible wallet or client library to sign and retry. <a href="/connect">Hermes users &mdash; follow the 3-step connect guide &raquo;</a></p>
 
-<a class="cta" href="/free-models" style="border-color: var(--accent); color: var(--accent);">try free — no wallet needed</a>
+<a class="cta" href="/pricing" style="border-color: var(--accent); color: var(--accent);">see pricing — from $0.01 per request</a>
 <a class="cta" href="/performance" style="border-color: var(--green); color: var(--green);">100 TPS @ $0.065/M — see verified benchmarks</a>
 <a class="cta" href="/connect" style="border-color: var(--yellow); color: var(--yellow);">connect your hermes</a>
 <a class="cta" href="/builder">build your own combo</a>
@@ -2970,8 +2765,6 @@ _DOCS_CONTENT = r"""
   <tr><td>surp/coding</td><td>—</td><td>—</td><td>alias for surp/best-coding</td></tr>
   <tr><td>surp/fast</td><td>—</td><td>—</td><td>alias for surp/best-fast</td></tr>
   <tr><td>surp/chat</td><td>—</td><td>—</td><td>alias for surp/best-chat</td></tr>
-  <tr><td>surp/free</td><td>free</td><td>chat</td><td>treasury-sponsored free inference with live fallback, rate limits, and daily budgets</td></tr>
-  <tr><td>surp/srup-free</td><td>free</td><td>alias</td><td>legacy alias of surp/free</td></tr>
 </tbody>
 </table>
 
@@ -3282,7 +3075,7 @@ _CONNECT_CONTENT = r"""
       - surp/coding
       - surp/chat
       - surp/fast
-      - surp/srup-free</pre>
+      - surp/best-fast</pre>
 <p class="dim">The <code>key_env</code> field tells Hermes to send your wallet key as the authorization. The gateway uses it to sign x402 payments on your behalf. <code>discover_models: false</code> makes the /model picker show exactly these combos instead of probing the endpoint.</p>
 
 <h2>step 4 &mdash; switch your model</h2>
@@ -4146,83 +3939,11 @@ async def api_feedback_list(request: web.Request) -> web.Response:
     })
 
 
-async def page_free_models(request: web.Request) -> web.Response:
-    """Live sponsored-free models + OmniRoute catalog intelligence."""
-    try:
-        markets = await GCACHE.get()
-    except Exception:
-        markets = []
-    sponsored = [
-        {
-            "model": m["model"],
-            "usd_per_1m": cr.usd_per_1m(m),
-            "healthy_sellers": int(m.get("healthy_seller_count") or 0),
-            "requests_24h": int(m.get("requests_24h") or 0),
-            "volume_24h": int(m.get("volume_24h") or 0),
-        }
-        for m in fm.sponsored_pool(markets)
-    ]
-    html = _render_html(
-        fmp.content(sponsored, fm.live_stats(), fm.catalog_summary()),
-        "/free-models",
-    )
-    return web.Response(text=html, content_type="text/html")
-
-
-async def api_free_stats(request: web.Request) -> web.Response:
-    """GET /api/free-models — live pool, usage, and catalog totals."""
-    try:
-        markets = await GCACHE.get()
-    except Exception:
-        markets = []
-    pool = fm.sponsored_pool(markets)
-    return web.json_response({
-        "sponsored": True,
-        "usage": fm.live_stats(),
-        "eligible_models": [
-            {
-                "model": m["model"],
-                "usd_per_1m": round(cr.usd_per_1m(m), 6),
-                "healthy_sellers": int(m.get("healthy_seller_count") or 0),
-                "requests_24h": int(m.get("requests_24h") or 0),
-            }
-            for m in pool
-        ],
-        "conversion": fm.conversion_stats(),
-        "omniroute_catalog": fm.catalog_summary(),
-        "disclaimer": "Catalog is informational. Public inference is sponsored by surp using paid Surplus access, not third-party personal free-tier credentials.",
-    })
-
-
-async def api_free_key_create(request: web.Request) -> web.Response:
-    """POST /api/free-key — create a free-tier API key with elevated budgets.
-
-    Body: {"label": "my-app", "elevated_requests": 1000, "elevated_tokens": 200000}
-    """
-    try:
-        body = await request.json()
-    except Exception:
-        return web.json_response({"error": "invalid JSON"}, status=400)
-    label = str(body.get("label", ""))[:60] or "anonymous"
-    elevated_requests = min(int(body.get("elevated_requests", 1000)), 10000)
-    elevated_tokens = min(int(body.get("elevated_tokens", 200000)), 2_000_000)
-    rec = fm.create_free_key(label, elevated_requests, elevated_tokens)
-    return web.json_response({
-        "ok": True,
-        "key": rec["key"],
-        "label": rec["label"],
-        "tier": "free",
-        "elevated_requests": rec["elevated_requests"],
-        "elevated_tokens": rec["elevated_tokens"],
-        "note": "Use this key as the Bearer token for surp/free. Elevated budgets replace the default IP-based limits.",
-    })
-
-
 async def page_health_board(request: web.Request) -> web.Response:
     """Live free model health board with TPS, latency, and failure rates."""
     ranked = ph.all_models()
     html = _render_html(
-        hbp.content(ranked, fm.conversion_stats(), fm.live_stats()),
+        hbp.content(ranked),
         "/health",
     )
     return web.Response(text=html, content_type="text/html")
@@ -4616,57 +4337,18 @@ async def api_studio_delete(request: web.Request) -> web.Response:
 
 
 async def api_studio_chat(request: web.Request) -> web.Response:
-    """POST /api/studio/chat — chat via surp's own gateway free tier.
+    """POST /api/studio/chat — retired with the free tier.
 
-    The studio chat is treasury-sponsored (surp/free) so users can chat
-    without a wallet. Body: {messages: [{role, content}], model?: str}
-    model accepts surp/free (default), surp/free-coding, surp/free-fast.
+    The studio chat was treasury-sponsored (surp/free). Upstream inference is
+    never free — every request carries a real buyer cost — so the sponsored
+    tier was removed and this endpoint no longer serves completions.
     """
-    log = logging.getLogger("surp.gateway")
-    user_id = _auth_user(request)
-    if not user_id:
-        return web.json_response({"error": "unauthorized"}, status=401)
-    try:
-        body = await request.json()
-    except Exception:
-        return web.json_response({"error": "invalid JSON"}, status=400)
-    messages = body.get("messages") or []
-    if not messages or not isinstance(messages, list):
-        return web.json_response({"error": "messages required"}, status=400)
-    # Chat model selector: only treasury-sponsored free routes are offered
-    # (the studio chat must not burn paid credits or require x402).
-    model = str(body.get("model", "surp/free") or "surp/free")
-    free_class_map = {
-        "surp/free": "chat",
-        "surp/free-coding": "coding",
-        "surp/free-fast": "fast",
-        "surp/srup-free": "chat",
-    }
-    free_class = free_class_map.get(model)
-    if free_class is None:
-        return web.json_response(
-            {"error": "studio chat supports free routes only: surp/free, surp/free-coding, surp/free-fast"},
-            status=400,
-        )
-    client_ip = request.headers.get("X-Real-IP") or request.remote or "studio"
-    payload = {
-        "model": model,
-        "messages": messages,
-        "max_tokens": min(int(body.get("max_tokens", 500) or 500), 1000),
-        "stream": False,
-    }
-    try:
-        markets = await GCACHE.get()
-    except Exception:
-        markets = []
-    try:
-        resp = await _serve_free_completion(request, payload, markets, client_ip, free_class=free_class)
-        # _serve_free_completion returns an aiohttp Response — read its body.
-        data = json.loads(resp.body) if isinstance(resp.body, (bytes, str)) else resp.body
-        return web.json_response(data)
-    except Exception as e:
-        log.error(f"studio chat failed: {e}")
-        return web.json_response({"error": f"chat failed: {e}"}, status=502)
+    return web.json_response({
+        "error": "studio chat has been retired",
+        "reason": "the treasury-sponsored free tier was removed; upstream inference is paid per request",
+        "alternative": "call POST /v1/chat/completions with a prepaid key or an x402 payment",
+    }, status=410)
+
 
 
 async def studio_media(request: web.Request) -> web.Response:
@@ -4932,8 +4614,6 @@ async def api_health(request: web.Request) -> web.Response:
     """GET /api/health-board — per-model TPS, latency, failure rate, ranking."""
     return web.json_response({
         "ranked": ph.all_models(),
-        "conversion": fm.conversion_stats(),
-        "free_usage": fm.live_stats(),
         "window_seconds": ph.WINDOW_SECONDS,
         "note": "Surplus Intelligence's marketplace dashboard does not expose TPS, latency, or failure rates. surp measures these directly.",
     })
@@ -5014,7 +4694,7 @@ async def serve_robots(request: web.Request) -> web.Response:
 async def serve_sitemap(request: web.Request) -> web.Response:
     import time as _time
     lastmod = _time.strftime("%Y-%m-%d", _time.gmtime())
-    pages = ["/", "/developers", "/docs", "/connect", "/builder", "/about", "/contact", "/privacy", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/prices", "/pricing", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/versioning", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api", "/updates/jev-routing"]
+    pages = ["/", "/developers", "/docs", "/connect", "/builder", "/about", "/contact", "/privacy", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/prices", "/pricing", "/models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/versioning", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api", "/updates/jev-routing"]
     machine_resources = [
         "/openapi.json", "/auth.md", "/llms.txt", "/llms-full.txt", "/llms-ctx-full.txt", "/mcp.json", "/mcp", "/versioning",
         "/.well-known/mcp/server-card.json", "/.well-known/agent-card.json",
@@ -5157,7 +4837,7 @@ async def serve_llms_txt(request: web.Request) -> web.Response:
         "",
         "## When to use Surp",
         "- Use Surp when an agent needs OpenAI-compatible text inference with live model routing and transparent pricing.",
-        "- Use `surp/free` for zero-cost testing within the daily cap, `surp/value` for cost-aware production calls, and `surp/frontier` when quality matters most.",
+        "- Use `surp/value` for cost-aware calls, `surp/frontier` when quality matters most, and `surp/jev` for decision-model routing.",
         "- Call POST https://surp.ivc.lol/v1/chat/completions with a prepaid Bearer key or fulfill the returned x402 payment challenge.",
         "- Call GET https://surp.ivc.lol/v1/models before selecting a route or model.",
         "",
@@ -5197,7 +4877,7 @@ async def serve_llms_full(request: web.Request) -> web.Response:
 
 Use Surp when an agent needs text inference without binding itself to one model vendor. Surp is a good fit for agents that need live cost-aware routing, a stable OpenAI-compatible endpoint, autonomous HTTP payments, or a free route for bounded testing.
 
-- Use `surp/free` for sponsored requests within the current daily limits.
+- Use `surp/value` for cost-aware calls and `surp/jev` for decision-model routing.
 - Use `surp/value` for a balance of intelligence and price.
 - Use `surp/frontier` when output quality matters more than price.
 - Use `surp/fast` when latency matters most.
@@ -5237,10 +4917,6 @@ The request and response follow the OpenAI chat-completions shape. The authorita
 ## Authentication and payment
 
 Surp supports three access paths.
-
-### Sponsored free route
-
-Use `surp/free` for zero-cost requests within current treasury and abuse-control limits. Availability, model selection, token limits, and daily capacity can change. See https://surp.ivc.lol/free-models for live details.
 
 ### Prepaid API key
 
@@ -5348,7 +5024,7 @@ async def serve_openapi(request: web.Request) -> web.Response:
             "Model": {"type": "object", "required": ["id"], "properties": {"id": {"type": "string"}, "object": {"type": "string"}}},
             "ModelsResponse": {"type": "object", "required": ["data"], "properties": {"object": {"type": "string"}, "data": {"type": "array", "items": {"$ref": "#/components/schemas/Model"}}}},
             "ChatMessage": {"type": "object", "required": ["role", "content"], "properties": {"role": {"type": "string", "enum": ["system", "user", "assistant", "tool"], "description": "Conversation role."}, "content": {"type": "string", "description": "Message content."}, "name": {"type": "string"}, "tool_call_id": {"type": "string"}}},
-            "ChatRequest": {"type": "object", "required": ["model", "messages"], "properties": {"model": {"type": "string", "description": "Route to call, e.g. surp/free, surp/value, surp/frontier.", "examples": ["surp/free", "surp/value"]}, "messages": {"type": "array", "items": {"$ref": "#/components/schemas/ChatMessage"}}, "max_tokens": {"type": "integer", "minimum": 1}, "temperature": {"type": "number", "minimum": 0, "maximum": 2}, "stream": {"type": "boolean", "default": False}}},
+            "ChatRequest": {"type": "object", "required": ["model", "messages"], "properties": {"model": {"type": "string", "description": "Route to call, e.g. surp/value, surp/frontier, surp/jev.", "examples": ["surp/value", "surp/jev"]}, "messages": {"type": "array", "items": {"$ref": "#/components/schemas/ChatMessage"}}, "max_tokens": {"type": "integer", "minimum": 1}, "temperature": {"type": "number", "minimum": 0, "maximum": 2}, "stream": {"type": "boolean", "default": False}}},
             "ChatChoice": {"type": "object", "required": ["index", "message"], "properties": {"index": {"type": "integer"}, "message": {"$ref": "#/components/schemas/ChatMessage"}, "finish_reason": {"type": ["string", "null"], "enum": ["stop", "length", "content_filter", "tool_calls", None]}}},
             "Usage": {"type": "object", "properties": {"prompt_tokens": {"type": "integer"}, "completion_tokens": {"type": "integer"}, "total_tokens": {"type": "integer"}}},
             "ChatResponse": {"type": "object", "required": ["id", "choices"], "properties": {"id": {"type": "string"}, "object": {"type": "string"}, "created": {"type": "integer"}, "model": {"type": "string"}, "choices": {"type": "array", "items": {"$ref": "#/components/schemas/ChatChoice"}}, "usage": {"$ref": "#/components/schemas/Usage"}}},
@@ -5367,7 +5043,7 @@ async def serve_openapi(request: web.Request) -> web.Response:
 async def serve_sitemap(request: web.Request) -> web.Response:
     import time as _time
     lastmod = _time.strftime("%Y-%m-%d", _time.gmtime())
-    pages = ["/", "/developers", "/docs", "/connect", "/builder", "/about", "/contact", "/privacy", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/prices", "/pricing", "/models", "/free-models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/versioning", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api", "/updates/jev-routing"]
+    pages = ["/", "/developers", "/docs", "/connect", "/builder", "/about", "/contact", "/privacy", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/prices", "/pricing", "/models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/versioning", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api", "/updates/jev-routing"]
     machine_resources = [
         "/openapi.json", "/auth.md", "/llms.txt", "/llms-full.txt", "/llms-ctx-full.txt", "/mcp.json", "/mcp", "/versioning",
         "/.well-known/mcp/server-card.json", "/.well-known/agent-card.json",
@@ -5837,9 +5513,6 @@ def build_app() -> web.Application:
     app.router.add_get("/api/votes", api_vote_results)
     app.router.add_post("/api/vote", api_cast_vote)
     app.router.add_get("/token-gating", page_token_gating)
-    app.router.add_get("/free-models", page_free_models)
-    app.router.add_get("/api/free-models", api_free_stats)
-    app.router.add_post("/api/free-key", api_free_key_create)
     app.router.add_get("/health", page_health_board)
     app.router.add_get("/features", page_features)
     app.router.add_get("/auction", page_auction)

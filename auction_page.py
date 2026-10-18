@@ -90,5 +90,5 @@ def content(affinity_stats: dict) -> str:
 <h2>why this matters</h2>
 <p>Orderbook pricing for cached inference <b>overcharges buyers and under-rewards cache creators</b>. A buyer asking the same prefix twice pays list price both times, even though the second fill cost the provider ~5x less. An auction would let the cached provider bid lower, win the fill, and pass savings to the buyer — while still earning more than the commodity margin. The <a href="/cache">exact-response cache</a> and <a href="/proposal">SRP reward ledger</a> are surp's current approximation of this; the affinity auction is the full vision.</p>
 
-<p class="dim">related: <a href="/cache">cache-aware routing</a> · <a href="/health">provider health board</a> · <a href="/proposal">reward proposal</a> · <a href="/free-models">free models</a> · <a href="/docs">API docs</a></p>
+<p class="dim">related: <a href="/cache">cache-aware routing</a> · <a href="/health">provider health board</a> · <a href="/proposal">reward proposal</a> · <a href="/docs">API docs</a></p>
 """

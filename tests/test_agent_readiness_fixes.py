@@ -77,4 +77,4 @@ def test_developers_page_names_scp_server_sandbox_and_versioning():
     html = run(gateway.page_developers, "/developers", "text/html").text
     assert "href='/mcp'" in html
     assert "href='/versioning'" in html
-    assert "api/free-key" in html  # live, copy-pasteable sandbox step
+    assert "api/free-key" not in html  # free tier removed; no free-key step

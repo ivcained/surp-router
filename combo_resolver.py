@@ -66,8 +66,6 @@ BUILTIN_COMBOS: list[str] = [
     "best-coding-fast",
     "pro-coding", "pro-reasoning", "pro-vision", "pro-chat", "pro-fast",
     "coding", "chat",
-    "free", "srup-free",
-    "free-coding", "free-fast",
 ]
 
 # Human-readable descriptions, shown on the site.
@@ -90,10 +88,6 @@ COMBO_DESCRIPTIONS: dict[str, str] = {
     "pro-fast": "cheapest FRONTIER-tier fast model",
     "coding": "alias of best-coding",
     "chat": "alias of best-chat",
-    "free": "treasury-sponsored free inference with live fallback and daily limits",
-    "free-coding": "treasury-sponsored free coding models with live fallback",
-    "free-fast": "treasury-sponsored free fast/small models with live fallback",
-    "srup-free": "legacy alias of surp/free (treasury-sponsored)",
     "jev": "Jev decision-model routing — TypeSafe Jev picks from the value pool per request (bounded, metadata-only, fail-open)",
 }
 
@@ -225,10 +219,7 @@ def pool_for(combo: str, markets: list[dict]) -> list[dict]:
         return sorted(all_text, key=price_of)
     if combo == "vision":
         return sorted([m for m in all_text if is_vision(m)], key=price_of)
-    if combo in ("free", "srup-free"):
-        zero = [m for m in all_text if price_of(m) == 0]
-        pool = zero if zero else all_text
-    elif combo.startswith("my/"):
+    if combo.startswith("my/"):
         wanted = get_custom_models(combo[3:])
         if wanted is None:
             return []

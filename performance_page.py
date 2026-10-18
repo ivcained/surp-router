@@ -100,5 +100,5 @@ def content(ranked: list[dict], recent: dict) -> str:
        "max_tokens":400,
        "stream":true}}'</pre>
 
-<p class="dim">related: <a href="/health">provider health board (RPS, latency)</a> · <a href="/free-models">free models</a> · <a href="/auction">cache-affinity auction</a> · <a href="/api/benchmarks">benchmark API</a></p>
+<p class="dim">related: <a href="/health">provider health board (RPS, latency)</a> · <a href="/auction">cache-affinity auction</a> · <a href="/api/benchmarks">benchmark API</a></p>
 """
