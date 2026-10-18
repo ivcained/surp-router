@@ -46,6 +46,46 @@ SURPLUS_BASE = "https://api.surplusintelligence.ai"
 MARKETS_URL = f"{SURPLUS_BASE}/api/markets"
 FORWARD_BASE = f"{SURPLUS_BASE}/v1"
 
+# Client → SI request headers the resolver forwards verbatim. These are
+# documented Surplus Intelligence routing/masking controls; everything else
+# from the inbound request is dropped (auth is replaced with our own key).
+SI_REQUEST_PASSTHROUGH_HEADERS = (
+    "X-SI-Mask-Secrets",
+    "X-SI-Route-Objective",
+    "X-SI-Route-Tolerance-Pct",
+)
+
+# SI → client response headers the resolver surfaces. x-si-* telemetry only.
+SI_RESPONSE_ALLOWLIST = (
+    "x-si-served-by",
+    "x-si-marketplace-attempts",
+    "x-si-attempts",
+    "x-si-buyer-cost-micro",
+    "x-si-truncated",
+    "x-si-adapted-params",
+    "x-si-secret-masking",
+    "x-si-secrets-masked",
+    "x-si-secrets-withheld",
+    "x-si-trace-id",
+)
+
+
+def _si_passthrough_headers(inbound) -> dict:
+    """Pick the SI control headers to forward from the inbound request."""
+    out = {}
+    for name in SI_REQUEST_PASSTHROUGH_HEADERS:
+        value = inbound.get(name)
+        if value:
+            out[name] = value
+    return out
+
+
+def _si_response_allowlist(upstream_headers: dict) -> dict:
+    """Keep x-si-* telemetry (plus base content headers) from the SI response."""
+    keep = {h for h in SI_RESPONSE_ALLOWLIST} | {"content-type", "cache-control", "x-request-id"}
+    return {k: v for k, v in upstream_headers.items() if k.lower() in keep}
+
+
 COMBOS: list[str] = [
     "best-coding", "best-reasoning", "best-fast", "best-vision", "best-chat",
     "best-coding-fast",
@@ -173,6 +213,8 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
         v = request.headers.get(h)
         if v:
             headers[h] = v
+    # SI routing/masking controls the client asked for (X-SI-Mask-Secrets etc.)
+    headers.update(_si_passthrough_headers(request.headers))
 
     is_stream = bool(payload.get("stream"))
     timeout = aiohttp.ClientTimeout(total=None, sock_read=600)
@@ -196,10 +238,9 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
 
     # Pipe the response back. streaming -> SSE chunk pass-through;
     # non-streaming -> buffered JSON.
-    out = web.StreamResponse(status=upstream.status, headers={
-        k: v for k, v in upstream.headers.items()
-        if k.lower() in ("content-type", "cache-control", "x-request-id")
-    })
+    out = web.StreamResponse(status=upstream.status, headers=_si_response_allowlist(
+        {k: v for k, v in upstream.headers.items()}
+    ))
     if is_stream:
         out.content_type = "text/event-stream"
         out.headers["Cache-Control"] = "no-cache"

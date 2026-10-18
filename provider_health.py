@@ -165,3 +165,41 @@ def all_models(window_seconds: int = WINDOW_SECONDS) -> list[dict[str, Any]]:
         "SELECT DISTINCT model FROM provider_samples WHERE ts >= ?", (since,)
     ).fetchall()]
     return ranked(models, window_seconds)
+
+
+def provider_stats(window_seconds: int = WINDOW_SECONDS) -> dict[str, dict]:
+    """Aggregate measured routing health per *provider* (not per model).
+
+    Returns {provider: {requests, failures, failure_rate, p50_latency_ms,
+    mean_latency_ms, tokens, models}}. Providers with no samples are absent.
+    """
+    since = int(time.time()) - window_seconds
+    with _lock:
+        rows = conn().execute(
+            "SELECT provider, model, status, latency_ms, tokens FROM provider_samples "
+            "WHERE ts >= ?", (since,)
+        ).fetchall()
+    out: dict[str, dict] = {}
+    for r in rows:
+        pid = str(r["provider"] or "unknown")
+        agg = out.setdefault(pid, {
+            "requests": 0, "failures": 0, "failure_rate": 0.0,
+            "p50_latency_ms": 0, "mean_latency_ms": 0, "tokens": 0, "models": set(),
+        })
+        agg["requests"] += 1
+        if r["status"] != "ok":
+            agg["failures"] += 1
+        agg["tokens"] += int(r["tokens"] or 0)
+        if r["model"]:
+            agg["models"].add(r["model"])
+        if r["status"] == "ok" and r["latency_ms"] > 0:
+            agg.setdefault("_latencies", []).append(int(r["latency_ms"]))
+    for pid, agg in out.items():
+        lat = agg.pop("_latencies", [])
+        lat.sort()
+        n = agg["requests"]
+        agg["failure_rate"] = round(agg["failures"] / n, 4) if n else 0.0
+        agg["p50_latency_ms"] = _percentile(lat, 0.50) if lat else 0
+        agg["mean_latency_ms"] = int(sum(lat) / len(lat)) if lat else 0
+        agg["models"] = len(agg["models"])
+    return out

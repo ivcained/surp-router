@@ -62,6 +62,7 @@ import system_design_page as sdp
 import home_page
 import price_compare as pc
 import price_compare_page as pcp
+import si_intel as si
 
 # Investor pitch deck (self-contained HTML, served at /pitch).
 _DECK_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pitch_deck.html")
@@ -96,6 +97,95 @@ PUBLIC_BASE = os.environ.get("SURP_PUBLIC_BASE", "https://surp.ivc.lol").rstrip(
 
 # The price-resolving proxy (internal only — never surfaced in API responses).
 RESOLVER_BASE = os.environ.get("RESOLVER_BASE", "http://127.0.0.1:20129")
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Surplus Intelligence routing controls + telemetry (gateway side)
+#
+# Body fields (provider / providers_blocked / provider_order / si_route) are
+# documented SI routing controls; the gateway validates their shape, then lets
+# them flow through the resolver to SI unchanged. X-SI-* request headers are
+# forwarded the same way. SI's x-si-* response telemetry comes back through
+# the resolver and is surfaced to the client; x-si-buyer-cost-micro also feeds
+# the whitelabel buyer-cost ledger (Pattern B).
+# ──────────────────────────────────────────────────────────────────────────────
+
+SI_REQUEST_HEADERS = ("X-SI-Mask-Secrets", "X-SI-Route-Objective", "X-SI-Route-Tolerance-Pct")
+SI_RESPONSE_HEADERS = (
+    "x-si-served-by", "x-si-marketplace-attempts", "x-si-attempts",
+    "x-si-buyer-cost-micro", "x-si-truncated", "x-si-adapted-params",
+    "x-si-secret-masking", "x-si-secrets-masked", "x-si-secrets-withheld",
+    "x-si-trace-id",
+)
+SI_BLOCKED_MAX_ENTRIES = 32  # SI refuses longer blocklists; fail fast here too
+SI_ROUTE_OBJECTIVES = ("price", "latency", "reliability", "price_without_cache")
+
+
+def _si_request_headers(inbound) -> dict:
+    """Client → SI control headers to forward toward the resolver."""
+    out = {}
+    for name in SI_REQUEST_HEADERS:
+        value = inbound.get(name)
+        if value:
+            out[name] = value
+    return out
+
+
+def _si_response_headers(upstream) -> dict:
+    """x-si-* telemetry from the resolver response to surface to the client."""
+    return {k: v for k, v in upstream.items() if k.lower() in SI_RESPONSE_HEADERS}
+
+
+def _buyer_cost_cents(upstream) -> int:
+    """x-si-buyer-cost-micro (integer micro USD) → whole cents. 0 when absent."""
+    try:
+        micro = int(upstream.get("x-si-buyer-cost-micro") or 0)
+    except (TypeError, ValueError):
+        return 0
+    return max(0, micro) // 10_000
+
+
+def _validate_si_controls(payload: dict) -> Optional[dict]:
+    """Validate SI routing-control body fields before any payment work.
+
+    Returns an error-response dict when a control is malformed (mirroring SI's
+    own 'refuse, do not silently ignore' semantics for blocks), else None.
+    """
+    def _err(msg: str) -> dict:
+        return {"error": {"type": "invalid_request", "message": msg}}
+
+    for field in ("provider", "providers_blocked", "provider_order"):
+        value = payload.get(field)
+        if value is None:
+            continue
+        if field == "provider" and isinstance(value, str):
+            continue  # single provider pin: string or list both allowed
+        if not isinstance(value, list) or not all(isinstance(x, str) and x.strip() for x in value):
+            return _err(f"'{field}' must be a provider id string or an array of non-empty strings")
+        if field == "providers_blocked" and len(value) > SI_BLOCKED_MAX_ENTRIES:
+            return _err(f"'providers_blocked' is capped at {SI_BLOCKED_MAX_ENTRIES} entries")
+
+    si_route = payload.get("si_route")
+    if si_route is None:
+        return None
+    if not isinstance(si_route, dict):
+        return _err("'si_route' must be an object")
+    objective = si_route.get("objective")
+    if objective is not None:
+        if not isinstance(objective, str) or objective not in SI_ROUTE_OBJECTIVES:
+            return _err(
+                "'si_route.objective' must be one of: " + ", ".join(SI_ROUTE_OBJECTIVES)
+            )
+    tolerance = si_route.get("price_tolerance_pct")
+    if tolerance is not None and not isinstance(tolerance, (int, float)):
+        return _err("'si_route.price_tolerance_pct' must be a number")
+    max_latency = si_route.get("max_latency_ms")
+    if max_latency is not None and not isinstance(max_latency, (int, float)):
+        return _err("'si_route.max_latency_ms' must be a number")
+    cache = si_route.get("cache")
+    if cache is not None and not isinstance(cache, bool):
+        return _err("'si_route.cache' must be a boolean")
+    return None
+
 
 # x402 facilitator — default x402.org facilitator handles Base Sepolia testnet.
 # For production mainnet, set PROD_FACILITATOR_URL and a pay_to wallet.
@@ -1212,12 +1302,15 @@ async def _serve_free_completion(
 
 def _log_user_usage(request: web.Request, combo: str, model: str,
                     tokens_in: int, tokens_out: int, cost_cents: int,
-                    tx_hash: str = "") -> None:
+                    tx_hash: str = "", buyer_cost_cents: int = 0) -> None:
     """Log usage to a user's account if they authenticated via a user-account API key.
 
     This is distinct from the legacy prepaid API keys in stats.py — user-account
     keys are created via the /app dashboard and tracked per-user. Fault-isolated:
     a DB error never breaks a paid request.
+
+    buyer_cost_cents is the whitelabel (Pattern B) buyer-side cost: what the
+    upstream marketplace charged, from SI's x-si-buyer-cost-micro header.
     """
     try:
         auth = request.headers.get("Authorization", "")
@@ -1233,7 +1326,8 @@ def _log_user_usage(request: web.Request, combo: str, model: str,
         # we still log but the key may be over — the next request will block)
         ua.check_budget(key_rec["key_id"], cost_cents)
         ua.log_usage(key_rec["user_id"], key_rec["key_id"],
-                     f"surp/{combo}", tokens_in, tokens_out, cost_cents, tx_hash)
+                     f"surp/{combo}", tokens_in, tokens_out, cost_cents, tx_hash,
+                     buyer_cost_cents=buyer_cost_cents)
     except Exception as e:
         logging.getLogger("surp.gateway").debug(f"_log_user_usage skipped: {e}")
 
@@ -1261,6 +1355,15 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
         payload = json.loads(raw) if raw else {}
     except json.JSONDecodeError as e:
         return web.json_response({"error": f"invalid JSON: {e}"}, status=400)
+
+    # SI routing controls (providers_blocked / provider_order / si_route): validate
+    # shape up front so a malformed control fails fast instead of being silently
+    # ignored or bounced by SI after payment work. Valid fields stay in the body
+    # and flow to SI unchanged. (The `provider` pin is handled by surp's own
+    # BYO pool filtering below.)
+    controls_error = _validate_si_controls(payload)
+    if controls_error is not None:
+        return web.json_response(controls_error, status=400)
 
     model = payload.get("model", "")
     if not model.startswith("surp/"):
@@ -1642,6 +1745,9 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
     # ── Forward to resolver ──
     is_stream = bool(payload.get("stream"))
     fwd_headers = {"Content-Type": "application/json"}
+    # SI routing/masking controls the client sent (X-SI-Mask-Secrets etc.) —
+    # forwarded so the resolver can pass them to Surplus Intelligence.
+    fwd_headers.update(_si_request_headers(request.headers))
     # Pin the concrete model selected by cache-aware routing. The internal
     # resolver treats concrete model ids as passthrough, so seller/model locality
     # is preserved instead of resolving the combo a second time.
@@ -1675,9 +1781,13 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
             k: v for k, v in upstream.headers.items()
             if k.lower() in ("content-type", "cache-control", "x-request-id")
         }
+        # SI routing telemetry (x-si-served-by / x-si-attempts / x-si-buyer-cost-micro …)
+        si_telemetry = _si_response_headers(upstream.headers)
+        buyer_cost_cents = _buyer_cost_cents(upstream.headers)
         await session.close()
         headers = {
             **upstream_headers,
+            **si_telemetry,
             "X-Payment-Settled": "true",
             "X-Routed-Model": resolved_model or "",
             "X-Surplus-Price-Per-1M": str(surplus_price),
@@ -1714,7 +1824,8 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
         st.log_request(combo, resolved_model, payer, required_microcents, tx_hash,
                        payment_method, tokens_in=tokens_in, tokens_out=tokens_out,
                        latency_ms=latency_ms)
-        _log_user_usage(request, combo, resolved_model, tokens_in, tokens_out, cents, tx_hash)
+        _log_user_usage(request, combo, resolved_model, tokens_in, tokens_out, cents, tx_hash,
+                        buyer_cost_cents=buyer_cost_cents)
         # Record cache-affinity sample: which model served which prefix with
         # what latency. This builds the ad-network-style prefix→provider index
         # that enables discounted bids for cached prefixes. Record even without
@@ -1742,6 +1853,11 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
         k: v for k, v in upstream.headers.items()
         if k.lower() in ("content-type", "cache-control", "x-request-id")
     })
+    # SI routing telemetry on the stream too (headers arrive before first byte).
+    for _k, _v in _si_response_headers(upstream.headers).items():
+        out.headers[_k] = _v
+    # Whitelabel buyer cost is known before streaming starts.
+    stream_buyer_cost_cents = _buyer_cost_cents(upstream.headers)
     out.content_type = "text/event-stream"
     out.headers["Cache-Control"] = "no-cache"
     out.headers["X-Payment-Settled"] = "true"
@@ -1829,7 +1945,8 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
 
     st.log_request(combo, resolved_model, payer, required_microcents, tx_hash,
                    payment_method, tokens_in=0, tokens_out=expected_tokens, latency_ms=latency_ms)
-    _log_user_usage(request, combo, resolved_model, 0, expected_tokens, cents, tx_hash)
+    _log_user_usage(request, combo, resolved_model, 0, expected_tokens, cents, tx_hash,
+                    buyer_cost_cents=stream_buyer_cost_cents)
     return out
 
 
@@ -1936,6 +2053,62 @@ async def api_combo_history(request: web.Request) -> web.Response:
 async def api_jev_stats(request: web.Request) -> web.Response:
     """GET /api/jev/stats — Jev routing telemetry. Separate from settlement accounting."""
     return web.json_response(jev_router.read_stats())
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# SI market / performance / provider data endpoints (read-only, cached)
+# ──────────────────────────────────────────────────────────────────────────────
+
+_SI_DATA_HEADERS = {
+    "Access-Control-Allow-Origin": "*",
+    "Cache-Control": "public, max-age=30",
+}
+
+
+async def api_markets(request: web.Request) -> web.Response:
+    """GET /api/markets — live SI market snapshot, 30s server-side cache."""
+    try:
+        data = await si.markets()
+    except si.SIError as e:
+        return web.json_response({"error": str(e)}, status=e.status)
+    return web.json_response(data, headers=_SI_DATA_HEADERS)
+
+
+async def api_markets_model(request: web.Request) -> web.Response:
+    """GET /api/markets/{model} — one model's market record (per-provider offers)."""
+    model = request.match_info["model"].strip()
+    try:
+        record = await si.market_for(model)
+    except si.SIError as e:
+        return web.json_response({"error": str(e)}, status=e.status)
+    if record is None:
+        return web.json_response(
+            {"error": "unknown model", "model": model,
+             "hint": "list models via /api/markets or /v1/models"},
+            status=404,
+        )
+    return web.json_response(
+        {"model": model, "market": record}, headers=_SI_DATA_HEADERS
+    )
+
+
+async def api_performance_model(request: web.Request) -> web.Response:
+    """GET /api/performance/{model} — SI provider performance (TPS/TTFT/uptime), 60s cache."""
+    model = request.match_info["model"].strip()
+    try:
+        status, body = await si.performance(model)
+    except si.SIError as e:
+        return web.json_response({"error": str(e)}, status=e.status)
+    return web.json_response(body, status=status, headers=_SI_DATA_HEADERS)
+
+
+async def api_providers(request: web.Request) -> web.Response:
+    """GET /api/providers — SI trusted flags merged with market and surp-measured stats."""
+    try:
+        data = await si.providers()
+    except si.SIError as e:
+        return web.json_response({"error": str(e)}, status=e.status)
+    return web.json_response(data, headers=_SI_DATA_HEADERS)
 
 
 async def api_global_stats(request: web.Request) -> web.Response:
@@ -5633,6 +5806,10 @@ def build_app() -> web.Application:
     app.router.add_get("/api/price-compare", api_price_compare)
     app.router.add_get("/api/stats", api_global_stats)
     app.router.add_get("/api/jev/stats", api_jev_stats)
+    app.router.add_get("/api/markets", api_markets)
+    app.router.add_get("/api/markets/{model}", api_markets_model)
+    app.router.add_get("/api/performance/{model}", api_performance_model)
+    app.router.add_get("/api/providers", api_providers)
     app.router.add_get("/api/rewards", api_reward_balance)
     app.router.add_get("/api/health", api_health)
     app.router.add_post("/api/keys/create", api_keys_create)

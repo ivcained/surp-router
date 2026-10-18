@@ -79,6 +79,7 @@ def _init_db() -> None:
                     input_tokens INTEGER,
                     output_tokens INTEGER,
                     cost_cents INTEGER,
+                    buyer_cost_cents INTEGER DEFAULT 0,
                     tx_hash TEXT,
                     created_at INTEGER
                 );
@@ -86,6 +87,12 @@ def _init_db() -> None:
                 CREATE INDEX IF NOT EXISTS idx_usage_key ON usage(api_key_id, created_at);
                 CREATE INDEX IF NOT EXISTS idx_usage_model ON usage(user_id, model);
             """)
+            # Migration for databases created before buyer_cost_cents existed.
+            try:
+                conn.execute("ALTER TABLE usage ADD COLUMN buyer_cost_cents INTEGER DEFAULT 0")
+            except sqlite3.OperationalError:
+                pass  # column already present
+            conn.commit()
         finally:
             conn.close()
 
@@ -240,18 +247,23 @@ def check_budget(key_id: str, cost_cents: int) -> bool:
 
 def log_usage(user_id: str, api_key_id: str, model: str,
               input_tokens: int, output_tokens: int, cost_cents: int,
-              tx_hash: str = "") -> None:
-    """Log a completed inference request. Fault-isolated (never breaks requests)."""
+              tx_hash: str = "", buyer_cost_cents: int = 0) -> None:
+    """Log a completed inference request. Fault-isolated (never breaks requests).
+
+    buyer_cost_cents is the whitelabel (Pattern B) buyer-side cost: what the
+    upstream marketplace actually charged for this request, converted from
+    SI's x-si-buyer-cost-micro header (micro USD / 10,000). 0 when unknown.
+    """
     try:
         with _LOCK:
             conn = _connect()
             try:
                 conn.execute(
                     "INSERT INTO usage (user_id, api_key_id, model, input_tokens, "
-                    "output_tokens, cost_cents, tx_hash, created_at) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    "output_tokens, cost_cents, buyer_cost_cents, tx_hash, created_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (user_id, api_key_id, model, input_tokens, output_tokens,
-                     cost_cents, tx_hash, int(time.time()))
+                     cost_cents, buyer_cost_cents, tx_hash, int(time.time()))
                 )
             finally:
                 conn.close()
@@ -282,6 +294,7 @@ def get_dashboard_stats(user_id: str) -> dict:
     """Compute aggregate dashboard stats for a user."""
     stats: dict[str, Any] = {
         "total_spend_cents": 0,
+        "buyer_cost_cents": 0,
         "total_requests": 0,
         "total_input_tokens": 0,
         "total_output_tokens": 0,
@@ -297,6 +310,7 @@ def get_dashboard_stats(user_id: str) -> dict:
             # Totals
             row = conn.execute(
                 "SELECT COALESCE(SUM(cost_cents),0) as total_spend, "
+                "COALESCE(SUM(buyer_cost_cents),0) as buyer_cost, "
                 "COUNT(*) as total_requests, "
                 "COALESCE(SUM(input_tokens),0) as total_input, "
                 "COALESCE(SUM(output_tokens),0) as total_output "
@@ -304,6 +318,8 @@ def get_dashboard_stats(user_id: str) -> dict:
             ).fetchone()
             if row:
                 stats["total_spend_cents"] = row["total_spend"]
+                stats["buyer_cost_cents"] = row["buyer_cost"]
+                stats["buyer_cost_usd"] = round(row["buyer_cost"] / 100, 4)
                 stats["total_requests"] = row["total_requests"]
                 stats["total_input_tokens"] = row["total_input"]
                 stats["total_output_tokens"] = row["total_output"]
