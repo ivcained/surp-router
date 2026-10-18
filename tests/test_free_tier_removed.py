@@ -114,3 +114,19 @@ def test_studio_chat_no_longer_serves_free_completions():
     import inspect
     src = inspect.getsource(gw.api_studio_chat)
     assert "_serve_free_completion" not in src
+
+
+def test_health_board_page_renders():
+    """Regression: page_health_board must render after free-tier removal
+    (it 500'd once when hbp.content's signature changed without this path
+    being covered)."""
+    from aiohttp.test_utils import make_mocked_request
+
+    app = gw.build_app()
+    paths = {r.resource.canonical for r in app.router.routes()}
+    assert "/health" in paths
+    req = make_mocked_request("GET", "/health")
+    resp = asyncio.run(gw.page_health_board(req))
+    assert resp.status == 200
+    assert "health board" in resp.text.lower()
+    assert "free" not in resp.text.lower() or "free" in "failure"  # no free-tier copy
