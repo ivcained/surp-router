@@ -104,12 +104,20 @@ def _name_matches(name: str, tokens: tuple[str, ...]) -> bool:
 
 
 def is_text_llm(m: dict) -> bool:
-    """A text/chat LLM — has per-token pricing and no media-unit pricing."""
+    """A text/chat LLM — has per-token pricing and no media-unit pricing.
+
+    Output pricing is REQUIRED: models priced with input > 0 but output == 0
+    (e.g. jev-1.13, gpt-6-luna-decisions) are decision-wire models — the
+    marketplace lists liquidity for them, but the chat-completions wire is
+    not available, so routing a chat combo to them fails with
+    'wire not available for chat'. A chat model must generate (and charge
+    for) output tokens.
+    """
     inp = m.get("best_input_per_1m") or 0
     out = m.get("best_output_per_1m") or 0
     media = m.get("best_media_unit_price")
     try:
-        return (float(inp) > 0 or float(out) > 0) and not media
+        return float(out) > 0 and not media
     except (TypeError, ValueError):
         return False
 

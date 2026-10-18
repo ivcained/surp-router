@@ -129,6 +129,55 @@ def test_si_intel_providers_merges_trusted_and_market_aggregates(monkeypatch):
     assert "surplus_marketplace" in out["sources"] and "measured_by_surp" in out["sources"]
 
 
+# ── combo_resolver: decision models must not enter chat pools ────────────────
+
+def test_decision_models_are_excluded_from_chat_pools():
+    """jev-1.13 / gpt-6-luna-decisions are decision-wire models: SI lists them
+    with input pricing but zero output pricing and no chat wire. They must not
+    win cheapest-first chat combos ('wire not available for chat')."""
+    import combo_resolver as cr
+
+    decision = {
+        "model": "jev-1.13",
+        "best_input_per_1m": 420,
+        "best_output_per_1m": 0,
+        "best_price_per_1m": 414,
+        "best_media_unit_price": None,
+        "total_cap": 5_000_000,
+        "healthy_seller_count": 5,
+    }
+    chat = {
+        "model": "kimi-k3",
+        "best_input_per_1m": 1000,
+        "best_output_per_1m": 2000,
+        "best_price_per_1m": 3000,
+        "best_media_unit_price": None,
+        "total_cap": 1000,
+        "healthy_seller_count": 2,
+    }
+
+    assert cr.is_sellable(decision) is True      # liquidity exists...
+    assert cr.is_text_llm(decision) is False     # ...but no chat wire
+    pool = cr.pool_for("best-chat", [decision, chat])
+    models = {m["model"] for m in pool}
+    assert "kimi-k3" in models
+    assert "jev-1.13" not in models
+
+
+def test_regular_chat_models_still_qualify():
+    import combo_resolver as cr
+    chat = {
+        "model": "glm-5.2",
+        "best_input_per_1m": 1000,
+        "best_output_per_1m": 2000,
+        "best_media_unit_price": None,
+        "total_cap": 1000,
+        "healthy_seller_count": 2,
+    }
+    assert cr.is_text_llm(chat) is True
+    assert cr.pool_for("chat", [chat])
+
+
 # ── provider_health aggregation ──────────────────────────────────────────────
 
 def test_provider_health_provider_stats_groups_by_provider(tmp_path, monkeypatch):
