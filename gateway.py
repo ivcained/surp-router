@@ -638,6 +638,14 @@ PAGE_META = {
         "title": "Jev AI Router for Intelligent LLM Routing | Surp",
         "desc": "See how Surp uses Jev to score LLM candidates by task, reasoning, and tool fit, with price, cache, confidence, and fail-open routing guards.",
     },
+    "/terms": {
+        "title": "Terms of Service — surp.ivc.lol",
+        "desc": "Terms for surp.ivc.lol: pay-per-request LLM routing, prepaid keys and USDC x402 payments, acceptable use, no warranty, liability cap at prepaid balance, refunds, changes.",
+    },
+    "/operator": {
+        "title": "Operator — surp.ivc.lol",
+        "desc": "surp.ivc.lol is operated by ivcained (github.com/ivcained), an independent gateway in front of the Surplus Intelligence marketplace. Contact: hi@surp.ivc.lol.",
+    },
 }
 
 JSONLD_ORG = {
@@ -659,6 +667,12 @@ JSONLD_ORG = {
         "name": "surp.ivc.lol",
         "url": "https://surp.ivc.lol",
         "email": "hi@surp.ivc.lol",
+        "founder": {
+            "@type": "Person",
+            "name": "ivcained",
+            "url": "https://github.com/ivcained",
+            "sameAs": ["https://github.com/ivcained"],
+        },
         "contactPoint": {"@type": "ContactPoint", "email": "hi@surp.ivc.lol", "contactType": "customer and developer support", "availableLanguage": ["English"]},
         "address": {"@type": "PostalAddress", "addressCountry": "US", "addressRegion": "Online service"},
     },
@@ -743,7 +757,7 @@ async def page_home(request: web.Request) -> web.Response:
 
 
 async def page_developers(request: web.Request) -> web.Response:
-    content = """<h1>Surp Developer Portal</h1><p>Build agent and application integrations with Surp's [OI]-compatible AI inference router.</p><h2>Core developer resources</h2><ul><li><a href='/docs'>Surp API documentation</a> — authentication, endpoints, x402 payment flow, pricing, streaming, and examples.</li><li><a href='/openapi.json'>Surp OpenAPI 3.1 specification</a> — typed requests, responses, operation IDs, and error models.</li><li><a href='/auth.md'>Surp agent authentication guide</a> — prepaid Bearer keys and x402 payment signatures.</li><li><a href='/mcp.json'>Surp MCP manifest</a> and <a href='/.well-known/mcp/server-card.json'>MCP Server Card</a>.</li><li><a href='/mcp'>Surp MCP server</a> — live Streamable HTTP endpoint (initialize, tools, resources).</li><li><a href='/versioning'>API versioning &amp; deprecation policy</a> — URL versioning, Deprecation and Sunset headers.</li><li><a href='/.well-known/agent-card.json'>Surp A2A Agent Card</a> and <a href='/.well-known/agent-skills/index.json'>Agent Skills index</a>.</li><li><a href='/llms.txt'>Surp llms.txt</a> — concise instructions for agents.</li></ul><h2>Start building</h2><p>Use <code>https://surp.ivc.lol/v1</code> as the base URL. List routes with <a href='/v1/models'>GET /v1/models</a> and submit completions to <code>POST /v1/chat/completions</code>. Create a self-serve key in the <a href='/app'>Surp account app</a>, or fulfill the x402 payment challenge returned by a paid request.</p><h2>Sandbox</h2><p>Test with zero credentials: <code>curl https://surp.ivc.lol/v1/models</code> (no auth), then browse live prices at <a href='/prices'>/prices</a> and pick a combo. Paid requests cost from $0.01: create a prepaid key in the <a href='/app'>account app</a> or complete an x402 challenge.</p><h2>Operations</h2><p>See <a href='/pricing'>pricing</a>, <a href='/status'>service status</a>, <a href='/privacy'>privacy</a>, and <a href='/contact'>developer support</a>.</p>"""
+    content = """<h1>Surp Developer Portal</h1><p>Build agent and application integrations with Surp's [OI]-compatible AI inference router.</p><h2>Core developer resources</h2><ul><li><a href='/docs'>Surp API documentation</a> — authentication, endpoints, x402 payment flow, pricing, streaming, and examples.</li><li><a href='/openapi.json'>Surp OpenAPI 3.1 specification</a> — typed requests, responses, operation IDs, and error models.</li><li><a href='/auth.md'>Surp agent authentication guide</a> — prepaid Bearer keys and x402 payment signatures.</li><li><a href='/mcp.json'>Surp MCP manifest</a> and <a href='/.well-known/mcp/server-card.json'>MCP Server Card</a>.</li><li><a href='/mcp'>Surp MCP server</a> — live Streamable HTTP endpoint (initialize, tools, resources).</li><li><a href='/versioning'>API versioning &amp; deprecation policy</a> — URL versioning, Deprecation and Sunset headers.</li><li><a href='/.well-known/agent-card.json'>Surp A2A Agent Card</a> and <a href='/.well-known/agent-skills/index.json'>Agent Skills index</a>.</li><li><a href='/llms.txt'>Surp llms.txt</a> — concise instructions for agents.</li></ul><h2>Start building</h2><p>Use <code>https://surp.ivc.lol/v1</code> as the base URL. List routes with <a href='/v1/models'>GET /v1/models</a> and submit completions to <code>POST /v1/chat/completions</code>. Create a self-serve key in the <a href='/app'>Surp account app</a>, or fulfill the x402 payment challenge returned by a paid request.</p><h2>Sandbox</h2><p>Test with zero credentials: <code>curl https://surp.ivc.lol/v1/models</code> (no auth), then browse live prices at <a href='/prices'>/prices</a> and pick a combo. Paid requests cost from $0.01: create a prepaid key in the <a href='/app'>account app</a> or complete an x402 challenge.</p><h2>Operations</h2><p>See <a href='/pricing'>pricing</a>, <a href='/status'>service status</a>, <a href='/terms'>terms of service</a>, <a href='/operator'>operator identity</a>, <a href='/privacy'>privacy</a>, and <a href='/contact'>developer support</a>.</p>"""
     return web.Response(text=_render_html(content, "/developers"), content_type="text/html", headers=_agent_discovery_headers())
 
 
@@ -881,6 +895,16 @@ async def page_updates_jev(request: web.Request) -> web.Response:
 async def page_contact(request: web.Request) -> web.Response:
     content = """<h1>Contact Surp</h1><p>Surp provides a Base-native AI inference router for developers and autonomous agents. For product questions, integration support, security reports, billing questions, or partnership requests, email <a href='mailto:hi@surp.ivc.lol'>hi@surp.ivc.lol</a>. Include the affected endpoint, request timestamp, request ID when available, and whether the call used x402 or a prepaid API key. Never email API keys, wallet private keys, payment signatures, or other credentials. Technical documentation is available at <a href='/docs'>/docs</a>, machine-readable API definitions at <a href='/openapi.json'>/openapi.json</a>, and current service state at <a href='/status'>/status</a>. Security issues should include reproducible steps and impact while avoiding access to data that is not yours. We respond through the email address supplied by the reporter.</p>"""
     return web.Response(text=_render_html(content, "/contact"), content_type="text/html")
+
+
+async def page_terms(request: web.Request) -> web.Response:
+    html = _render_html(_TERMS_CONTENT, "/terms")
+    return web.Response(text=html, content_type="text/html")
+
+
+async def page_operator(request: web.Request) -> web.Response:
+    html = _render_html(_OPERATOR_CONTENT, "/operator")
+    return web.Response(text=html, content_type="text/html")
 
 
 async def page_privacy(request: web.Request) -> web.Response:
@@ -2898,6 +2922,65 @@ _ABOUT_CONTENT = r"""
 <h2>open source / community</h2>
 <p>The gateway code is small and readable. The routing logic — the combo resolver and the class taxonomy — is the valuable part, and it's all in one file. We'd rather the community fork it, improve the class definitions, add combos, and submit PRs than have us be the single source of truth. If you think <code>best-coding</code> should include a model we missed, or that we need a <code>best-agents</code> combo, open an issue.</p>
 <p class="dim">this is a community project. we make it work for us first, and share it because the marginal cost of letting you use it is approximately zero.</p>
+
+<h2>legal</h2>
+<p>The service is operated by <a href="/operator">ivcained</a>. See the <a href="/terms">terms of service</a> and the <a href="/privacy">privacy policy</a>.</p>
+"""
+
+_TERMS_CONTENT = r"""
+<h1>terms of service</h1>
+<p class="dim prompt">last updated: october 18, 2026</p>
+
+<p>These terms govern your use of <b>surp.ivc.lol</b>, a pay-per-request LLM routing service operated by ivcained (see <a href="/operator">operator identity</a>). By sending requests to the service, creating a prepaid API key, or paying via x402, you accept these terms.</p>
+
+<h2>1. the service</h2>
+<p>surp.ivc.lol is an independent gateway that routes OpenAI-compatible chat completion requests to models listed on the Surplus Intelligence marketplace (api.surplusintelligence.ai). For each request we resolve the route you chose to a concrete model at its live marketplace price, add a transparent 5% markup (minimum 1 cent per request, cache hits 0.1 cents), and forward the request. We do not host models, do not run a seller on the marketplace, and do not control the behavior, availability, or output of any upstream model or provider.</p>
+
+<h2>2. payment</h2>
+<p>Two payment paths are supported: (a) per-request payment in USDC on Base via the x402 protocol, where each request is authorized with an EIP-3009 signature and settled on-chain; and (b) prepaid API keys created in the account app, which carry a balance and a budget. Prices are quoted before payment. Model prices move with the live market; the amount you are charged is the amount quoted for your request.</p>
+
+<h2>3. acceptable use</h2>
+<p>Do not use the service to break the law, to generate or distribute content that is illegal where you or the serving provider operate, to attack or overload the service or its upstreams, to probe other customers' data, or to resell access without a written agreement. API keys are personal credentials: keep them secret. We may rate-limit, suspend, or refuse service to prevent abuse.</p>
+
+<h2>4. no warranty</h2>
+<p>The service is provided <b>as-is</b>, with <b>no warranty</b> of any kind, express or implied, including merchantability, fitness for a particular purpose, and non-infringement. Model outputs are generated by third-party models we do not control and may be inaccurate, incomplete, or unsuitable for your use. Availability depends on upstream marketplace sellers.</p>
+
+<h2>5. limitation of liability</h2>
+<p>To the maximum extent permitted by law, the operator's total liability arising from or related to the service is capped at the <b>unused balance of your prepaid API key</b>, or the amount you actually paid for the request at issue if paid via x402, whichever applies. The operator is not liable for indirect, incidental, or consequential damages, lost profits, or data loss.</p>
+
+<h2>6. termination and refunds</h2>
+<p>You may stop using the service at any time. You may terminate a prepaid API key at any time and request a refund of its <b>unused balance</b>; refunds are paid in USDC on Base to the wallet that funded the key, minus on-chain transfer costs. We may terminate or suspend service for violation of these terms; in that case the unused balance of any prepaid key is refunded the same way.</p>
+
+<h2>7. changes to these terms</h2>
+<p>We may update these terms as the service changes. The date at the top of this page reflects the current version. Material changes are announced on the site before they take effect. Continuing to use the service after a change takes effect means you accept the updated terms.</p>
+
+<h2>8. questions</h2>
+<p>Questions about these terms, the service, refunds, or your account: <a href="mailto:hi@surp.ivc.lol">hi@surp.ivc.lol</a>. See also the <a href="/privacy">privacy policy</a> and the <a href="/operator">operator page</a>.</p>
+"""
+
+_OPERATOR_CONTENT = r"""
+<h1>operator</h1>
+<p class="dim prompt">who runs this gateway</p>
+
+<h2>identity</h2>
+<p><b>surp.ivc.lol</b> is operated by <b>ivcained</b>.</p>
+<div class="card">
+  <p><b>Operator:</b> ivcained</p>
+  <p><b>Verifiable identity:</b> <a href="https://github.com/ivcained" rel="noopener">https://github.com/ivcained</a></p>
+  <p><b>Contact:</b> <a href="mailto:hi@surp.ivc.lol">hi@surp.ivc.lol</a></p>
+  <p><b>Source code:</b> <a href="https://github.com/ivcained/surp-router" rel="noopener">github.com/ivcained/surp-router</a></p>
+</div>
+
+<h2>what this service is</h2>
+<p>surp.ivc.lol is an <b>independent gateway</b> that sits in front of the Surplus Intelligence marketplace at <code>api.surplusintelligence.ai</code>. We route OpenAI-compatible requests to models listed on that marketplace at their live prices, take a transparent 5% markup, and settle payment per request in USDC on Base via x402, or through prepaid API keys. We are not affiliated with, endorsed by, or operated by Surplus Intelligence; any issue with a model's output or availability is ultimately an upstream marketplace matter, and any pricing question about surp itself can come straight to the contact above.</p>
+
+<h2>related</h2>
+<ul style="margin-left:20px;line-height:1.8;">
+  <li><a href="/terms">terms of service</a></li>
+  <li><a href="/privacy">privacy policy</a></li>
+  <li><a href="/contact">contact</a></li>
+  <li><a href="/about">about the project</a></li>
+</ul>
 """
 
 _PLAYGROUND_CONTENT = r"""
@@ -4694,7 +4777,7 @@ async def serve_robots(request: web.Request) -> web.Response:
 async def serve_sitemap(request: web.Request) -> web.Response:
     import time as _time
     lastmod = _time.strftime("%Y-%m-%d", _time.gmtime())
-    pages = ["/", "/developers", "/docs", "/connect", "/builder", "/about", "/contact", "/privacy", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/prices", "/pricing", "/models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/versioning", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api", "/updates/jev-routing"]
+    pages = ["/", "/developers", "/docs", "/connect", "/builder", "/about", "/contact", "/privacy", "/terms", "/operator", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/prices", "/pricing", "/models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/versioning", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api", "/updates/jev-routing"]
     machine_resources = [
         "/openapi.json", "/auth.md", "/llms.txt", "/llms-full.txt", "/llms-ctx-full.txt", "/mcp.json", "/mcp", "/versioning",
         "/.well-known/mcp/server-card.json", "/.well-known/agent-card.json",
@@ -4861,6 +4944,8 @@ async def serve_llms_txt(request: web.Request) -> web.Response:
         "- Status: https://surp.ivc.lol/status",
         "- Prices: https://surp.ivc.lol/prices",
         "- About: https://surp.ivc.lol/about",
+        "- Terms of service: https://surp.ivc.lol/terms",
+        "- Operator identity: https://surp.ivc.lol/operator",
         "- OpenAPI: https://surp.ivc.lol/openapi.json",
         "",
     ]
@@ -5043,7 +5128,7 @@ async def serve_openapi(request: web.Request) -> web.Response:
 async def serve_sitemap(request: web.Request) -> web.Response:
     import time as _time
     lastmod = _time.strftime("%Y-%m-%d", _time.gmtime())
-    pages = ["/", "/developers", "/docs", "/connect", "/builder", "/about", "/contact", "/privacy", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/prices", "/pricing", "/models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/versioning", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api", "/updates/jev-routing"]
+    pages = ["/", "/developers", "/docs", "/connect", "/builder", "/about", "/contact", "/privacy", "/terms", "/operator", "/status", "/dashboard", "/playground", "/top", "/find", "/compare", "/prices", "/pricing", "/models", "/health", "/performance", "/svi", "/features", "/auction", "/app", "/cache", "/proposal", "/proposal/srp", "/system-design", "/token-gating", "/pitch", "/versioning", "/x402", "/x402-llm-api", "/x402-gateway", "/pay-per-request-llm-api", "/cheapest-llm-api", "/updates/jev-routing"]
     machine_resources = [
         "/openapi.json", "/auth.md", "/llms.txt", "/llms-full.txt", "/llms-ctx-full.txt", "/mcp.json", "/mcp", "/versioning",
         "/.well-known/mcp/server-card.json", "/.well-known/agent-card.json",
@@ -5467,6 +5552,8 @@ def build_app() -> web.Application:
     app.router.add_get("/updates/jev-routing", page_updates_jev)
     app.router.add_get("/contact", page_contact)
     app.router.add_get("/privacy", page_privacy)
+    app.router.add_get("/terms", page_terms)
+    app.router.add_get("/operator", page_operator)
     app.router.add_get("/status", page_status)
     app.router.add_get("/dashboard", page_dashboard)
     app.router.add_get("/connect", page_connect)
