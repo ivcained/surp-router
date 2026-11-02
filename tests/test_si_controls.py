@@ -257,6 +257,7 @@ def test_gateway_si_header_forwarding_allowlists():
         "X-SI-Mask-Secrets": "on",
         "X-SI-Route-Objective": "latency",
         "X-SI-Route-Tolerance-Pct": "15",
+        "X-Min-Discount": "30",
         "Authorization": "Bearer surp_x",
         "X-Evil": "drop me",
     }
@@ -265,6 +266,7 @@ def test_gateway_si_header_forwarding_allowlists():
         "X-SI-Mask-Secrets": "on",
         "X-SI-Route-Objective": "latency",
         "X-SI-Route-Tolerance-Pct": "15",
+        "X-Min-Discount": "30",
     }
 
 
@@ -292,9 +294,10 @@ def test_proxy_forwards_si_request_headers():
     fwd = proxy._si_passthrough_headers({
         "X-SI-Mask-Secrets": "on",
         "X-SI-Route-Objective": "latency",
+        "X-Min-Discount": "30",
         "X-Something-Else": "x",
     })
-    assert fwd == {"X-SI-Mask-Secrets": "on", "X-SI-Route-Objective": "latency"}
+    assert fwd == {"X-SI-Mask-Secrets": "on", "X-SI-Route-Objective": "latency", "X-Min-Discount": "30"}
 
 
 def test_proxy_response_allowlist_includes_si_telemetry():

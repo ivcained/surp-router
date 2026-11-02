@@ -107,7 +107,7 @@ RESOLVER_BASE = os.environ.get("RESOLVER_BASE", "http://127.0.0.1:20129")
 # the whitelabel buyer-cost ledger (Pattern B).
 # ──────────────────────────────────────────────────────────────────────────────
 
-SI_REQUEST_HEADERS = ("X-SI-Mask-Secrets", "X-SI-Route-Objective", "X-SI-Route-Tolerance-Pct")
+SI_REQUEST_HEADERS = ("X-SI-Mask-Secrets", "X-SI-Route-Objective", "X-SI-Route-Tolerance-Pct", "X-Min-Discount")
 SI_RESPONSE_HEADERS = (
     "x-si-served-by", "x-si-marketplace-attempts", "x-si-attempts",
     "x-si-buyer-cost-micro", "x-si-truncated", "x-si-adapted-params",

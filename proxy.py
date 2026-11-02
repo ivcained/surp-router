@@ -52,6 +52,7 @@ SI_REQUEST_PASSTHROUGH_HEADERS = (
     "X-SI-Mask-Secrets",
     "X-SI-Route-Objective",
     "X-SI-Route-Tolerance-Pct",
+    "X-Min-Discount",
 )
 
 # SI → client response headers the resolver surfaces. x-si-* telemetry only.
