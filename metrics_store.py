@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS metric_samples (
 );
 CREATE INDEX IF NOT EXISTS idx_ms_model_ts ON metric_samples(model, ts);
 CREATE INDEX IF NOT EXISTS idx_ms_provider_ts ON metric_samples(provider, ts);
+CREATE INDEX IF NOT EXISTS idx_ms_ts_success ON metric_samples(ts, success);
 CREATE TABLE IF NOT EXISTS metric_rollups (
   bucket_ts INTEGER NOT NULL,
   bucket_seconds INTEGER NOT NULL,
@@ -225,7 +226,14 @@ class MetricWriter:
             )
 
     def _rollup(self, conn: sqlite3.Connection, now: Optional[float] = None) -> None:
-        """Roll up finished buckets since the marker, capped backfill."""
+        """Roll up finished buckets since the marker, capped backfill.
+
+        The marker is the MAX(bucket_ts) already rolled up. Buckets older than
+        the raw-sample retention window can never produce rows (samples purged),
+        so the start is clamped to the retention window — otherwise an old
+        marker makes every cycle rescan thousands of empty buckets at full
+        table-scan cost, blocking the event loop.
+        """
         now = time.time() if now is None else now
         bs = self.rollup_bucket_seconds
         newest = (int(now) // bs) * bs - bs  # last fully elapsed bucket
@@ -234,12 +242,31 @@ class MetricWriter:
             (bs,),
         ).fetchone()
         start_bucket = newest - bs if row[0] is None else row[0] + bs
+        # Never look further back than the retention window: older buckets are
+        # empty by construction and their rollups were purged with the samples.
+        earliest_useful = ((int(now) - self.retention_s) // bs) * bs
+        start_bucket = max(start_bucket, earliest_useful)
         done = 0
         b = start_bucket
         while b <= newest and done < MAX_BACKFILL_BUCKETS:
             self._roll_bucket(conn, b, bs)
             done += 1
             b += bs
+        # Advance the marker even when this cycle hit the backfill cap with
+        # empty buckets, so the next cycle starts where this one ended instead
+        # of rescanning the same empty range forever.
+        if done >= MAX_BACKFILL_BUCKETS and b > start_bucket:
+            marker = b - bs
+            row = conn.execute(
+                "SELECT MAX(bucket_ts) FROM metric_rollups WHERE bucket_seconds = ?",
+                (bs,),
+            ).fetchone()
+            if row[0] is None or marker > row[0]:
+                conn.execute(
+                    INSERT_ROLLUP,
+                    (marker, bs, "_progress", "", 1, 0,
+                     None, None, None, None, None),
+                )
         conn.commit()
 
     async def run(self) -> None:
@@ -316,6 +343,7 @@ def get_rollups(
             "SELECT bucket_ts, provider, model, success, sample_count, "
             "avg_ttft_ms, p95_ttft_ms, avg_tps, p95_tps, avg_f1000_h "
             "FROM metric_rollups WHERE bucket_seconds = ? "
+            "AND provider <> '_progress' "
             "ORDER BY bucket_ts DESC, provider, model LIMIT ?",
             (bucket_seconds, limit),
         ).fetchall()
