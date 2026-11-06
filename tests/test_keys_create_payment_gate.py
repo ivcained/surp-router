@@ -50,41 +50,61 @@ def _peer_transport(peer):
     return t
 
 
-def _post(body: dict, peer):
+def _post(body: dict, peer, headers=None):
+    h = {"Content-Type": "application/json"}
+    if headers:
+        h.update(headers)
     return make_mocked_request(
         "POST", "/api/keys/create",
-        headers={"Content-Type": "application/json"},
+        headers=h,
         payload=FakePayload(json.dumps(body).encode()),
         transport=_peer_transport(peer),
     )
 
 
-def _create(rec):
+def _run(body, peer, headers=None, rec=None):
     async def run():
-        with mock.patch.object(gateway.st, "create_api_key", return_value=rec) as m:
-            resp = await gateway.api_keys_create(_post(
-                {"label": "t", "balance_cents": 5000}, ("203.0.113.9", 1111)))
+        with mock.patch.object(gateway.st, "create_api_key", return_value=rec or {}) as m:
+            resp = await gateway.api_keys_create(_post(body, peer, headers))
             return resp, m
     return asyncio.run(run())
 
 
 def test_remote_balance_request_is_rejected_402_and_mints_nothing():
-    resp, minted = _create({"key": "sk-surp-x", "key_hash": "h", "label": "t",
-                            "balance_microcents": 0})
+    resp, minted = _run({"label": "t", "balance_cents": 5000}, ("203.0.113.9", 1111))
     assert resp.status == 402
     assert "cannot be granted remotely" in resp.text
     minted.assert_not_called()
 
 
-def test_loopback_balance_request_still_mints_funded_key_for_ops():
-    req = _post({"label": "ops probe", "balance_cents": 20}, ("127.0.0.1", 0))
+def test_proxied_public_client_behind_nginx_loopback_is_rejected():
+    # nginx peers from 127.0.0.1 but forwards X-Real-IP of the real client
+    resp, minted = _run({"label": "t", "balance_cents": 5000}, ("127.0.0.1", 0),
+                        headers={"X-Real-IP": "203.0.113.9"})
+    assert resp.status == 402
+    minted.assert_not_called()
+
+
+def test_client_cannot_spoof_its_way_to_loopback_via_xff():
+    # client-supplied XFF entries sit FIRST; nginx appends the real IP LAST
+    resp, minted = _run({"label": "t", "balance_cents": 5000}, ("127.0.0.1", 0),
+                        headers={"X-Forwarded-For": "127.0.0.1, 8.8.8.8, 203.0.113.9"})
+    assert resp.status == 402
+    minted.assert_not_called()
+
+
+def test_direct_operator_call_with_no_identity_headers_still_mints():
     rec = {"key": "sk-surp-x", "key_hash": "h", "label": "ops probe",
            "balance_microcents": 200000}
-    async def run():
-        with mock.patch.object(gateway.st, "create_api_key", return_value=rec) as m:
-            resp = await gateway.api_keys_create(req)
-            return resp, m
-    resp, m = asyncio.run(run())
+    resp, m = _run({"label": "ops probe", "balance_cents": 20}, ("127.0.0.1", 0), rec=rec)
+    assert resp.status == 200
+    m.assert_called_once_with("ops probe", 200000)
+
+
+def test_loopback_balance_request_still_mints_funded_key_for_ops():
+    rec = {"key": "sk-surp-x", "key_hash": "h", "label": "ops probe",
+           "balance_microcents": 200000}
+    resp, m = _run({"label": "ops probe", "balance_cents": 20}, ("127.0.0.1", 0), rec=rec)
     assert resp.status == 200
     m.assert_called_once_with("ops probe", 200000)  # 20 cents -> 200k microcents
 
@@ -98,25 +118,18 @@ def test_ipv6_loopback_is_loopback():
 
 
 def test_remote_zero_balance_creation_still_works():
-    req = _post({"label": "honest user", "balance_cents": 0}, ("198.51.100.7", 2222))
     rec = {"key": "sk-surp-x", "key_hash": "h", "label": "honest user",
            "balance_microcents": 0}
-    async def run():
-        with mock.patch.object(gateway.st, "create_api_key", return_value=rec) as m:
-            resp = await gateway.api_keys_create(req)
-            return resp, m
-    resp, m = asyncio.run(run())
+    resp, m = _run({"label": "honest user", "balance_cents": 0}, ("198.51.100.7", 2222), rec=rec)
     assert resp.status == 200
     m.assert_called_once_with("honest user", 0)
 
 
 def test_garbage_and_negative_balance_values_fail_closed():
     for bad in ("abc", [1], {"x": 1}):
-        req = _post({"label": "t", "balance_cents": bad}, ("203.0.113.9", 1))
-        resp = asyncio.run(gateway.api_keys_create(req))
+        resp, _ = _run({"label": "t", "balance_cents": bad}, ("203.0.113.9", 1))
         assert resp.status == 400, f"balance_cents={bad!r} should 400"
-    req = _post({"label": "t", "balance_cents": -5}, ("203.0.113.9", 1))
-    resp = asyncio.run(gateway.api_keys_create(req))
+    resp, _ = _run({"label": "t", "balance_cents": -5}, ("203.0.113.9", 1))
     assert resp.status == 400
 
 

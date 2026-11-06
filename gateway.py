@@ -1852,6 +1852,29 @@ def _is_loopback_remote(remote: str | None) -> bool:
     return remote in ("::1", "localhost") or any(remote.startswith(p) for p in LOOPBACK_PREFIXES)
 
 
+def _client_remote(request: web.Request) -> str | None:
+    """The real client IP, surviving the nginx loopback proxy.
+
+    The gateway binds 127.0.0.1:20130 and all public traffic arrives via nginx
+    on loopback, so request.remote alone would make everyone "local". When the
+    direct peer is loopback, trust only nginx-controlled identity headers:
+    X-Real-IP (nginx overwrites it, unspoofable) first, then the LAST entry of
+    X-Forwarded-For (nginx appends $remote_addr at the end; client-supplied
+    entries sit earlier in the list and are ignored). No identity headers at
+    all means a genuine on-server operator call.
+    """
+    remote = request.remote
+    if not _is_loopback_remote(remote):
+        return remote
+    real_ip = (request.headers.get("X-Real-IP") or "").strip()
+    if real_ip:
+        return real_ip
+    xff = (request.headers.get("X-Forwarded-For") or "").strip()
+    if xff:
+        return xff.split(",")[-1].strip()
+    return remote
+
+
 async def api_keys_create(request: web.Request) -> web.Response:
     """POST /api/keys/create — create a prepaid API key.
 
@@ -1871,7 +1894,7 @@ async def api_keys_create(request: web.Request) -> web.Response:
         return web.json_response({"error": "balance_cents must be an integer"}, status=400)
     if balance_cents < 0:
         return web.json_response({"error": "balance_cents must be >= 0"}, status=400)
-    if balance_cents > 0 and not _is_loopback_remote(request.remote):
+    if balance_cents > 0 and not _is_loopback_remote(_client_remote(request)):
         return web.json_response({
             "error": "balance_cents cannot be granted remotely",
             "detail": "keys are created with a $0 balance; funding requires payment (x402 top-up)",
