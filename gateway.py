@@ -1449,7 +1449,7 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
                 }, status=402)
             payment_method = "api_key"
             payer = f"key:{key_rec['key_hash'][:8]}"
-            log.info(f"api-key charge: {required_microcents} mc for {combo} -> {resolved_model}")
+            log.info(f"api-key charge: {required_microcents} mc key:{key_rec['key_hash'][:8]} label:{str(key_rec.get('label') or '')[:30]!r} for {combo} -> {resolved_model}")
 
     # ── Path B: NFT/token-gated eligibility ──
     # Holders of the configured ERC-20/721 bypass x402 entirely, with an
@@ -1843,14 +1843,40 @@ async def api_dashboard_data(request: web.Request) -> web.Response:
     return web.json_response(data)
 
 
+LOOPBACK_PREFIXES = ("127.", "::1")  # operator/test origin: the only source that may grant balance
+
+
+def _is_loopback_remote(remote: str | None) -> bool:
+    if not remote:
+        return False
+    return remote in ("::1", "localhost") or any(remote.startswith(p) for p in LOOPBACK_PREFIXES)
+
+
 async def api_keys_create(request: web.Request) -> web.Response:
-    """POST /api/keys/create — create a prepaid API key."""
+    """POST /api/keys/create — create a prepaid API key.
+
+    Balance grants are payment-gated: only loopback (operator/tests on the
+    server itself) may mint a funded key. Remote callers can create keys but
+    always start at $0 — anonymous balance grants were drained by free-riders
+    (2026-11-06: "artex" Go client, ~100 paid deepseek req/min, $0 collected).
+    """
     try:
         body = await request.json()
     except Exception:
         body = {}
     label = str(body.get("label", ""))[:60] or "anonymous"
-    balance_cents = int(body.get("balance_cents", 0))
+    try:
+        balance_cents = int(body.get("balance_cents", 0))
+    except (TypeError, ValueError):
+        return web.json_response({"error": "balance_cents must be an integer"}, status=400)
+    if balance_cents < 0:
+        return web.json_response({"error": "balance_cents must be >= 0"}, status=400)
+    if balance_cents > 0 and not _is_loopback_remote(request.remote):
+        return web.json_response({
+            "error": "balance_cents cannot be granted remotely",
+            "detail": "keys are created with a $0 balance; funding requires payment (x402 top-up)",
+            "granted_balance_cents": 0,
+        }, status=402)
     rec = st.create_api_key(label, balance_cents * 10_000)
     if "error" in rec:
         return web.json_response(rec, status=500)
