@@ -69,8 +69,22 @@ async def _stream_benchmark(session: aiohttp.ClientSession, model: str,
         ) as resp:
             if resp.status != 200:
                 body = await resp.text()
-                status = "failed"
                 error = f"HTTP {resp.status}: {body[:200]}"
+                # Upstream billing/exhaustion failures say nothing about the
+                # model's throughput. Recording them as "failed" runs poisons
+                # the public failure_rate and zeroes the leaderboard, so treat
+                # them as a blocked run and record nothing.
+                if "insufficient_balance" in body or "insufficient_credits" in body:
+                    return {"status": "blocked", "error": error}
+                # Resolver/upstream connectivity is a global condition, not a
+                # per-model throughput signal: abort instead of burning runs.
+                if resp.status in (502, 503, 504) and "upstream connection failed" in body:
+                    return {"status": "blocked", "error": error}
+                # Delisted model: nothing to measure, and a 404 must not be
+                # counted against its throughput record.
+                if resp.status == 404 and "no models match" in body:
+                    return {"status": "unlisted", "error": error}
+                status = "failed"
                 mb.record(model if not is_free else "surp/free", 0, int((time.monotonic() - t0) * 1000),
                           0, 0, 0.0, status, error)
                 return {"status": status, "error": error}
@@ -148,8 +162,12 @@ async def _stream_benchmark(session: aiohttp.ClientSession, model: str,
 
 
 async def run_benchmark(model: str, runs: int = 10, max_tokens: int = 512,
-                         api_key: str = "", is_free: bool = False) -> None:
-    """Run multiple benchmark iterations and print a summary."""
+                         api_key: str = "", is_free: bool = False) -> Optional[str]:
+    """Run multiple benchmark iterations and print a summary.
+
+    Returns "blocked" when upstream balance/credit is exhausted (nothing
+    recorded), otherwise None.
+    """
     print(f"\n{'='*60}")
     print(f"  benchmarking: {model} ({runs} runs, max_tokens={max_tokens})")
     print(f"{'='*60}")
@@ -159,6 +177,12 @@ async def run_benchmark(model: str, runs: int = 10, max_tokens: int = 512,
         for i in range(runs):
             prompt = BENCH_PROMPTS[i % len(BENCH_PROMPTS)]
             r = await _stream_benchmark(session, model, prompt, max_tokens, api_key, is_free)
+            if r["status"] == "blocked":
+                print(f"  run {i+1:2d}: BLOCKED (upstream balance/connectivity) - aborting {model}")
+                return "blocked"
+            if r["status"] == "unlisted":
+                print(f"  run {i+1:2d}: UNLISTED (no market match) - skipping {model}")
+                return "unlisted"
             if r["status"] == "ok":
                 results.append(r)
                 print(f"  run {i+1:2d}: TPS={r['output_tps']:6.1f}  TTFT={r['ttft_ms']:5d}ms  "

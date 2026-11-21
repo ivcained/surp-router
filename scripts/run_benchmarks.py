@@ -50,12 +50,29 @@ async def main() -> None:
         print("No API key available — skipping benchmark run.")
         return
 
+    blocked = []
+    ok_models = []
     for model in BENCH_MODELS:
         try:
-            await br.run_benchmark(model, runs=5, max_tokens=400, api_key=api_key)
+            result = await br.run_benchmark(model, runs=5, max_tokens=400, api_key=api_key)
         except Exception as e:
             print(f"Benchmark failed for {model}: {e}")
+            result = None
+        if result == "blocked":
+            blocked.append(model)
+            # Balance is global, not per-model: stop instead of burning
+            # 5 doomed requests on every remaining model.
+            print(f"\nUpstream Surplus balance is exhausted - stopping run. "
+                  f"Benchmarked 0 models, {len(BENCH_MODELS)} not attempted.")
+            break
+        ok_models.append(model)
         await asyncio.sleep(2)
+
+    if blocked:
+        print(f"\nBLOCKED: upstream balance exhausted (models: {', '.join(blocked)}).")
+        print("Top up Surplus credit/USDC; no rows were recorded, leaderboard kept last good data.")
+    else:
+        print(f"\nDone: {len(ok_models)}/{len(BENCH_MODELS)} models benchmarked.")
 
 
 if __name__ == "__main__":
